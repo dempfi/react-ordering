@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmitOnError": false,
+    "jsx": "react"
+  }
+}
