@@ -1,37 +1,34 @@
-import * as React from 'react';
-import PropTypes from 'prop-types';
+import React from 'react';
 import {findDOMNode} from 'react-dom';
 import invariant from 'invariant';
+import {ManagerContext, Manager} from '../Manager';
 
 import {provideDisplayName, omit} from '../utils';
+import {WrappedComponent, SortableElementProps, SortableNode} from '../types';
 
-const propTypes = {
-  index: PropTypes.number.isRequired,
-  collection: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  disabled: PropTypes.bool,
-};
+const omittedProps = ['index', 'collection', 'disabled'];
 
-const omittedProps = Object.keys(propTypes);
-
-export default function sortableElement(
-  WrappedComponent,
+export default function sortableElement<P extends {isDragging: boolean}>(
+  WrappedComponent: WrappedComponent<P>,
   config = {withRef: false},
 ) {
-  return class WithSortableElement extends React.Component {
+  return class extends React.Component<
+    SortableElementProps,
+    {dragging: boolean}
+  > {
     static displayName = provideDisplayName(
       'sortableElement',
       WrappedComponent,
     );
 
-    static contextTypes = {
-      manager: PropTypes.object.isRequired,
-    };
-
-    static propTypes = propTypes;
+    static contextType = ManagerContext;
 
     static defaultProps = {
       collection: 0,
     };
+
+    node!: SortableNode;
+    ref!: {node: SortableNode};
 
     state = {dragging: false};
 
@@ -39,7 +36,7 @@ export default function sortableElement(
       this.register();
     }
 
-    componentDidUpdate(prevProps) {
+    componentDidUpdate(prevProps: SortableElementProps) {
       if (this.node) {
         if (prevProps.index !== this.props.index) {
           this.node.sortableInfo.index = this.props.index;
@@ -62,14 +59,14 @@ export default function sortableElement(
 
     register() {
       const {collection, disabled, index} = this.props;
-      const node = findDOMNode(this);
+      const node = findDOMNode(this) as SortableNode;
 
       node.sortableInfo = {
-        collection,
+        collection: collection!,
         disabled,
         index,
         manager: this.context.manager,
-        setDragging: (dragging) => {
+        setDragging: (dragging: boolean) => {
           if (this.state.dragging !== dragging) this.setState({dragging});
         },
       };

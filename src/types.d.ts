@@ -1,4 +1,15 @@
-import * as React from 'react';
+import React from 'react';
+import {Manager} from './Manager';
+
+export type SortableNode = HTMLElement & {
+  sortableInfo: {
+    collection: Offset;
+    disabled?: boolean;
+    index: number;
+    manager: Manager;
+    setDragging: (isDragging: boolean) => void;
+  };
+};
 
 export type Axis = 'x' | 'y' | 'xy';
 
@@ -60,6 +71,7 @@ export interface Dimensions {
 
 export interface SortableContainerProps {
   axis?: Axis;
+  disableAutoscroll?: boolean;
   dropAnimationDuration?: number;
   dropAnimationEasing?: string;
   lockAxis?: Axis;

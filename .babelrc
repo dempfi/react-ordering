@@ -1,0 +1,34 @@
+{
+  "comments": false,
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "browsers": [
+            "last 2 versions",
+            "safari >= 7"
+          ]
+        }
+      }
+    ],
+    "@babel/preset-react",
+    "@babel/preset-typescript"
+  ],
+  "plugins": [
+    "@babel/plugin-proposal-class-properties",
+    [
+      "@babel/transform-runtime",
+      {
+        "useESModules": true,
+        "regenerator": false
+      }
+    ],
+    [
+      "babel-plugin-transform-async-to-promises",
+      {
+        "inlineHelpers": true
+      }
+    ]
+  ]
+}

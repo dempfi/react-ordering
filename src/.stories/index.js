@@ -49,7 +49,7 @@ const Item = SortableElement(
     value,
     itemIndex,
     isSorting,
-    dragging,
+    isDragging,
   }) => {
     const bodyTabIndex = tabbable && !shouldUseDragHandle ? 0 : -1;
     const handleTabIndex = tabbable && shouldUseDragHandle ? 0 : -1;
@@ -71,7 +71,7 @@ const Item = SortableElement(
       >
         {shouldUseDragHandle && <Handle tabIndex={handleTabIndex} />}
         <div className={style.wrapper}>
-          <span>Item</span> {value} {dragging.toString()}
+          <span>Item</span> {value} {isDragging.toString()}
         </div>
       </div>
     );

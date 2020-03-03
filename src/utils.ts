@@ -94,11 +94,11 @@ export function closest(el, fn) {
   return null;
 }
 
-export function limit(min, max, value) {
+export function limit(min: number, max: number, value: number) {
   return Math.max(min, Math.min(value, max));
 }
 
-function getPixelValue(stringValue) {
+function getPixelValue(stringValue: string) {
   if (stringValue.substr(-2) === 'px') {
     return parseFloat(stringValue);
   }
@@ -106,7 +106,7 @@ function getPixelValue(stringValue) {
   return 0;
 }
 
-export function getElementMargin(element) {
+export function getElementMargin(element: Element) {
   const style = window.getComputedStyle(element);
 
   return {
@@ -117,9 +117,11 @@ export function getElementMargin(element) {
   };
 }
 
-export function provideDisplayName(prefix, Component) {
+export function provideDisplayName(
+  prefix: string,
+  Component: React.ComponentType,
+) {
   const componentName = Component.displayName || Component.name;
-
   return componentName ? `${prefix}(${componentName})` : prefix;
 }
 
@@ -151,21 +153,21 @@ export function getPosition(event) {
   }
 }
 
-export function isTouchEvent(event) {
+export function isTouchEvent(event: any): event is TouchEvent {
   return (
     (event.touches && event.touches.length) ||
     (event.changedTouches && event.changedTouches.length)
   );
 }
 
-export function getEdgeOffset(node, parent, offset = {left: 0, top: 0}) {
+export function getEdgeOffset(
+  node: HTMLElement,
+  parent?: HTMLElement,
+  offset = {left: 0, top: 0},
+): {left: number; top: number} {
   if (!node) {
     return undefined;
   }
-
-  const {left, top} = node.getBoundingClientRect();
-
-  return {left, top};
 
   // Get the actual offsetTop / offsetLeft value, no matter how deep the node is nested
   const nodeOffset = {
@@ -177,7 +179,7 @@ export function getEdgeOffset(node, parent, offset = {left: 0, top: 0}) {
     return nodeOffset;
   }
 
-  return getEdgeOffset(node.parentNode, parent, nodeOffset);
+  return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset);
 }
 
 export function getTargetIndex(newIndex, prevIndex, oldIndex) {
@@ -267,7 +269,7 @@ export function getScrollingParent(el) {
   }
 }
 
-export function getContainerGridGap(element) {
+export function getContainerGridGap(element: HTMLLIElement) {
   const style = window.getComputedStyle(element);
 
   if (style.display === 'grid') {
@@ -300,11 +302,13 @@ export const NodeType = {
   Select: 'SELECT',
 };
 
-export function cloneNode(node) {
+export function cloneNode(node: HTMLElement): HTMLElement {
   const selector = 'input, textarea, select, canvas, [contenteditable]';
-  const fields = node.querySelectorAll(selector);
-  const clonedNode = node.cloneNode(true);
-  const clonedFields = [...clonedNode.querySelectorAll(selector)];
+  const fields = node.querySelectorAll<HTMLInputElement>(selector);
+  const clonedNode = node.cloneNode(true) as HTMLElement;
+  const clonedFields = [
+    ...clonedNode.querySelectorAll<HTMLInputElement>(selector),
+  ];
 
   clonedFields.forEach((field, i) => {
     if (field.type !== 'file') {

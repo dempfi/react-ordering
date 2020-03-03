@@ -4,36 +4,11 @@ import commonjs from 'rollup-plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import babel from 'rollup-plugin-babel';
 import filesize from 'rollup-plugin-filesize';
-import {uglify} from 'rollup-plugin-uglify';
+import {terser} from 'rollup-plugin-terser';
 import pkg from './package.json';
 
 const external = (id) => !id.startsWith('.') && !id.startsWith('/');
-
-const babelConfig = (
-  {useESModules, targets} = {
-    useESModules: true,
-    targets: {browsers: 'last 2 versions'},
-  },
-) => ({
-  comments: false,
-  runtimeHelpers: true,
-  presets: [
-    '@babel/preset-typescript',
-    '@babel/preset-react',
-    [
-      '@babel/preset-env',
-      {
-        targets,
-      },
-    ],
-  ],
-  plugins: [
-    '@babel/plugin-proposal-class-properties',
-    ['@babel/transform-runtime', {useESModules, regenerator: false}],
-    ['babel-plugin-transform-async-to-promises', {inlineHelpers: true}],
-  ],
-  exclude: 'node_modules/**',
-});
+const extensions = ['.js', '.jsx', '.ts', '.tsx'];
 
 const umdConfig = ({minify} = {}) => ({
   input: pkg.source,
@@ -45,24 +20,18 @@ const umdConfig = ({minify} = {}) => ({
     globals: {
       react: 'React',
       'react-dom': 'ReactDOM',
-      'prop-types': 'PropTypes',
     },
   },
   plugins: [
-    typescript(),
-    resolve(),
-    babel(
-      babelConfig({
-        targets: {browsers: ['last 2 versions', 'safari >= 7']},
-      }),
-    ),
+    resolve({extensions}),
+    babel({runtimeHelpers: true, extensions}),
     replace({
       'process.env.NODE_ENV': JSON.stringify(
         minify ? 'production' : 'development',
       ),
     }),
     commonjs(),
-    minify ? uglify() : {},
+    minify ? terser() : {},
     filesize(),
   ],
 });
@@ -78,9 +47,8 @@ const rollupConfig = [
     external,
     output: [{file: pkg.main, format: 'cjs'}],
     plugins: [
-      typescript(),
-      resolve(),
-      babel(babelConfig({useESModules: false})),
+      resolve({extensions}),
+      babel({runtimeHelpers: true, extensions}),
       filesize(),
     ],
   },
@@ -90,7 +58,11 @@ const rollupConfig = [
     input: pkg.source,
     external,
     output: [{file: pkg.module, format: 'esm'}],
-    plugins: [typescript(), resolve(), babel(babelConfig()), filesize()],
+    plugins: [
+      resolve({extensions}),
+      babel({runtimeHelpers: true, extensions}),
+      filesize(),
+    ],
   },
 ];
 
