@@ -1,6 +1,6 @@
-import {KEYCODE} from '../utils';
-import defaultGetHelperDimensions from './defaultGetHelperDimensions';
-import defaultShouldCancelStart from './defaultShouldCancelStart';
+import { KEYCODE } from '../utils'
+import defaultGetHelperDimensions from './defaultGetHelperDimensions'
+import defaultShouldCancelStart from './defaultShouldCancelStart'
 
 export const orderingProps = [
   'axis',
@@ -31,16 +31,16 @@ export const orderingProps = [
   'outOfTheWayAnimationDuration',
   'updateBeforeSortStart',
   'useDragHandle',
-  'useWindowAsScrollContainer',
-];
+  'useWindowAsScrollContainer'
+]
 
 export const defaultKeyCodes = {
   lift: [KEYCODE.SPACE],
   drop: [KEYCODE.SPACE],
   cancel: [KEYCODE.ESC],
   up: [KEYCODE.UP, KEYCODE.LEFT],
-  down: [KEYCODE.DOWN, KEYCODE.RIGHT],
-};
+  down: [KEYCODE.DOWN, KEYCODE.RIGHT]
+}
 
 export const defaultProps = {
   axis: 'y',
@@ -58,5 +58,5 @@ export const defaultProps = {
   pressThreshold: 5,
   keyCodes: defaultKeyCodes,
   shouldCancelStart: defaultShouldCancelStart,
-  useWindowAsScrollContainer: false,
-};
+  useWindowAsScrollContainer: false
+}

@@ -1,12 +1,12 @@
-import React from 'react';
-import arrayMove from 'array-move';
+import React from 'react'
+import arrayMove from 'array-move'
 
-import SortableList from './List';
-import ItemStyles from './Item/Item.scss';
+import SortableList from './List'
+import ItemStyles from './Item/Item.scss'
 
 const items = {
-  input: <input placeholder="Regular text input" />,
-  textarea: <textarea placeholder="Textarea input" />,
+  input: <input placeholder='Regular text input' />,
+  textarea: <textarea placeholder='Textarea input' />,
   select: (
     <select>
       <option>Option 1</option>
@@ -17,11 +17,11 @@ const items = {
   checkbox: (
     <>
       <label>
-        <input type="checkbox" name="checkbox" />
+        <input type='checkbox' name='checkbox' />
         Checkbox 1
       </label>
       <label>
-        <input type="checkbox" name="checkbox" />
+        <input type='checkbox' name='checkbox' />
         Checkbox 2
       </label>
     </>
@@ -29,30 +29,30 @@ const items = {
   radio: (
     <>
       <label>
-        <input type="radio" name="option" />
+        <input type='radio' name='option' />
         Option 1
       </label>
       <label>
-        <input type="radio" name="option" />
+        <input type='radio' name='option' />
         Option 2
       </label>
     </>
   ),
-  range: <input type="range" min="1" max="100" />,
+  range: <input type='range' min='1' max='100' />,
   contentEditable: (
     <div
       contentEditable
       dangerouslySetInnerHTML={{
-        __html: 'Lorem ipsum <strong>dolor sit</strong> amet',
+        __html: 'Lorem ipsum <strong>dolor sit</strong> amet'
       }}
     />
-  ),
-};
+  )
+}
 
 export default class InteractiveElements extends React.Component {
   state = {
-    items: Object.entries(items),
-  };
+    items: Object.entries(items)
+  }
 
   render() {
     return (
@@ -65,16 +65,16 @@ export default class InteractiveElements extends React.Component {
         onSortEnd={this.onSortEnd}
         helperClass={ItemStyles.dragging}
       />
-    );
+    )
   }
 
-  onSortEnd = ({oldIndex, newIndex}) => {
+  onSortEnd = ({ oldIndex, newIndex }) => {
     if (oldIndex === newIndex) {
-      return;
+      return
     }
 
-    this.setState(({items}) => ({
-      items: arrayMove(items, oldIndex, newIndex),
-    }));
-  };
+    this.setState(({ items }) => ({
+      items: arrayMove(items, oldIndex, newIndex)
+    }))
+  }
 }

@@ -32,7 +32,7 @@ Then, using a module bundler that supports either CommonJS or ES2015 modules, su
 
 ```js
 // Using an ES6 transpiler like Babel
-import {SortableContainer, SortableElement} from 'react-ordering'
+import { SortableContainer, SortableElement } from 'react-ordering'
 
 // Not using an ES6 transpiler
 var Sortable = require('react-ordering')
@@ -51,14 +51,14 @@ Alternatively, an UMD build is also available:
 ### Basic Example
 
 ```js
-import React, {Component} from 'react'
-import {render} from 'react-dom'
-import {SortableContainer, SortableElement} from 'react-ordering'
+import React, { Component } from 'react'
+import { render } from 'react-dom'
+import { SortableContainer, SortableElement } from 'react-ordering'
 import arrayMove from 'array-move'
 
-const SortableItem = SortableElement(({value}) => <li>{value}</li>)
+const SortableItem = SortableElement(({ value }) => <li>{value}</li>)
 
-const SortableList = SortableContainer(({items}) => {
+const SortableList = SortableContainer(({ items }) => {
   return (
     <ul>
       {items.map((value, index) => (
@@ -70,14 +70,14 @@ const SortableList = SortableContainer(({items}) => {
 
 class SortableComponent extends Component {
   state = {
-    items: ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6'],
+    items: ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6']
   }
-  onSortEnd = ({oldIndex, newIndex}) => {
-    this.setState(({items}) => ({
-      items: arrayMove(items, oldIndex, newIndex),
+  onSortEnd = ({ oldIndex, newIndex }) => {
+    this.setState(({ items }) => ({
+      items: arrayMove(items, oldIndex, newIndex)
     }))
   }
-  render () {
+  render() {
     return <SortableList items={this.state.items} onSortEnd={this.onSortEnd} />
   }
 }
@@ -169,22 +169,17 @@ By default, `react-ordering` is triggered immediately on `mousedown`. If you'd l
 All props for `SortableContainer` and `SortableElement` listed above are intentionally consumed by the wrapper component and are **not** passed down to the wrapped component. To make them available pass down the desired prop again with a different name. E.g.:
 
 ```js
-const SortableItem = SortableElement(({value, sortIndex}) => (
+const SortableItem = SortableElement(({ value, sortIndex }) => (
   <li>
     {value} - #{sortIndex}
   </li>
 ))
 
-const SortableList = SortableContainer(({items}) => {
+const SortableList = SortableContainer(({ items }) => {
   return (
     <ul>
       {items.map((value, index) => (
-        <SortableItem
-          key={`item-${index}`}
-          index={index}
-          sortIndex={index}
-          value={value}
-        />
+        <SortableItem key={`item-${index}`} index={index} sortIndex={index} value={value} />
       ))}
     </ul>
   )

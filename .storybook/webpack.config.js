@@ -1,5 +1,5 @@
 module.exports = {
-  resolve: {extensions: ['.ts', '.tsx', '.js', '.scss', '.css']},
+  resolve: { extensions: ['.ts', '.tsx', '.js', '.scss', '.css'] },
   module: {
     rules: [
       {
@@ -8,25 +8,15 @@ module.exports = {
           {
             loader: 'babel-loader',
             options: {
-              presets: [
-                '@babel/preset-typescript',
-                '@babel/preset-react',
-                '@babel/preset-env',
-              ],
+              presets: ['@babel/preset-typescript', '@babel/preset-react', '@babel/preset-env'],
               plugins: [
                 '@babel/plugin-proposal-class-properties',
-                [
-                  '@babel/transform-runtime',
-                  {useESModules: true, regenerator: false},
-                ],
-                [
-                  'babel-plugin-transform-async-to-promises',
-                  {inlineHelpers: true},
-                ],
-              ],
-            },
-          },
-        ],
+                ['@babel/transform-runtime', { useESModules: true, regenerator: false }],
+                ['babel-plugin-transform-async-to-promises', { inlineHelpers: true }]
+              ]
+            }
+          }
+        ]
       },
       {
         test: /(\.scss)$/,
@@ -36,22 +26,22 @@ module.exports = {
             loader: 'css-loader',
             options: {
               modules: true,
-              localIdentName: '[name]__[local]',
-            },
+              localIdentName: '[name]__[local]'
+            }
           },
           {
             loader: 'postcss-loader',
             options: {
-              plugins: [require('autoprefixer')],
-            },
+              plugins: [require('autoprefixer')]
+            }
           },
-          'sass-loader',
-        ],
+          'sass-loader'
+        ]
       },
       {
         test: /(\.css)$/,
-        use: ['style-loader', 'css-loader'],
-      },
-    ],
-  },
-};
+        use: ['style-loader', 'css-loader']
+      }
+    ]
+  }
+}

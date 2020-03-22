@@ -1,15 +1,15 @@
-import {addParameters, configure} from '@storybook/react';
-import theme from './theme';
+import { addParameters, configure } from '@storybook/react'
+import theme from './theme'
 
 addParameters({
   options: {
     showAddonPanel: false,
-    theme,
-  },
-});
+    theme
+  }
+})
 
 function loadStories() {
-  require('../src/.stories/index.js');
+  require('../src/.stories/index.js')
 }
 
-configure(loadStories, module);
+configure(loadStories, module)

@@ -1,4 +1,4 @@
-import {create} from '@storybook/theming';
+import { create } from '@storybook/theming'
 
 export default create({
   base: 'light',
@@ -32,6 +32,5 @@ export default create({
 
   brandTitle: 'React Sortable HOC',
   brandUrl: 'https://github.com/clauderic/react-ordering',
-  brandImage:
-    'https://user-images.githubusercontent.com/1416436/54170652-dfd59d80-444d-11e9-9c51-658638c0454b.png',
-});
+  brandImage: 'https://user-images.githubusercontent.com/1416436/54170652-dfd59d80-444d-11e9-9c51-658638c0454b.png'
+})
