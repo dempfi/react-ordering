@@ -31,9 +31,9 @@ export function omit(obj, keysToOmit) {
 }
 
 export const events = {
-  end: ['touchend', 'touchcancel', 'mouseup'],
-  move: ['touchmove', 'mousemove'],
-  start: ['touchstart', 'mousedown']
+  end: ['touchend', 'touchcancel', 'mouseup'] as ['touchend', 'touchcancel', 'mouseup'],
+  move: ['touchmove', 'mousemove'] as ['touchmove', 'mousemove'],
+  start: ['touchstart', 'mousedown'] as ['touchstart', 'mousedown']
 }
 
 export const vendorPrefix = (function () {
@@ -127,16 +127,18 @@ export function getScrollAdjustedBoundingClientRect(node, scrollDelta) {
   }
 }
 
-export function getPosition(event) {
-  if (event.touches && event.touches.length) {
-    return {
-      x: event.touches[0].pageX,
-      y: event.touches[0].pageY
-    }
-  } else if (event.changedTouches && event.changedTouches.length) {
-    return {
-      x: event.changedTouches[0].pageX,
-      y: event.changedTouches[0].pageY
+export function getPosition(event: TouchEvent | MouseEvent) {
+  if (isTouchEvent(event)) {
+    if (event.touches && event.touches.length) {
+      return {
+        x: event.touches[0].pageX,
+        y: event.touches[0].pageY
+      }
+    } else {
+      return {
+        x: event.changedTouches[0].pageX,
+        y: event.changedTouches[0].pageY
+      }
     }
   } else {
     return {
@@ -146,9 +148,8 @@ export function getPosition(event) {
   }
 }
 
-export function isTouchEvent(event: any): event is TouchEvent {
-  return (event.touches && event.touches.length) || (event.changedTouches && event.changedTouches.length)
-}
+export const isTouchEvent = (event: any): event is TouchEvent =>
+  (event.touches && event.touches.length) || (event.changedTouches && event.changedTouches.length)
 
 export function getEdgeOffset(
   node: HTMLElement,

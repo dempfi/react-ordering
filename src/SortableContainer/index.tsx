@@ -32,6 +32,7 @@ import { AutoScroller } from '../auto-scroller'
 import { defaultProps, orderingProps, defaultKeyCodes } from './props'
 
 import { WrappedComponent, Config, SortableContainerProps, SortableNode } from '../types'
+import { isSortableNode } from '../element'
 
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
@@ -70,6 +71,7 @@ export default function sortableContainer<P>(
     offsetEdge?: { left: number; top: number }
     sortableGhost?: SortableNode
     prevIndex: number | undefined
+    position: { x: number; y: number }
 
     constructor(props: SortableContainerProps) {
       super(props)
@@ -101,8 +103,8 @@ export default function sortableContainer<P>(
 
         this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
 
-        events.end.forEach(name => this.container.addEventListener(name, this.handleEnd, false))
         events.start.forEach(name => this.container.addEventListener(name, this.handleStart, false))
+        events.end.forEach(name => this.container.addEventListener(name, this.handleEnd, false))
         events.move.forEach(name => this.container.addEventListener(name, this.handleMove, false))
 
         this.container.addEventListener('keydown', this.handleKeyDown)
@@ -117,17 +119,17 @@ export default function sortableContainer<P>(
         return
       }
 
-      events.end.forEach(name => this.container.removeEventListener(name, this.handleEnd))
       events.start.forEach(name => this.container.removeEventListener(name, this.handleStart))
+      events.end.forEach(name => this.container.removeEventListener(name, this.handleEnd))
       events.move.forEach(name => this.container.removeEventListener(name, this.handleMove))
 
       this.container.removeEventListener('keydown', this.handleKeyDown)
     }
 
-    handleStart = event => {
+    handleStart = (event: TouchEvent | MouseEvent) => {
       const { distance, shouldCancelStart } = this.props
 
-      if (event.button === 2 || shouldCancelStart(event)) {
+      if ((!isTouchEvent(event) && event.button === 2) || shouldCancelStart(event)) {
         return
       }
 
@@ -136,7 +138,7 @@ export default function sortableContainer<P>(
 
       const node = closest(event.target, el => el.sortableInfo != undefined)
 
-      if (node && node.sortableInfo && this.nodeIsChild(node) && !this.state.sorting) {
+      if (node && isSortableNode(node) && this.nodeIsChild(node) && !this.state.sorting) {
         const { useDragHandle } = this.props
         const { index, collection, disabled } = node.sortableInfo
 
@@ -155,7 +157,7 @@ export default function sortableContainer<P>(
          * prevent subsequent 'mousemove' events from being fired
          * (see https://github.com/clauderic/react-ordering/issues/118)
          */
-        if (!isTouchEvent(event) && event.target.tagName === NodeType.Anchor) {
+        if (!isTouchEvent(event) && (event.target as HTMLElement).tagName === NodeType.Anchor) {
           event.preventDefault()
         }
 
@@ -173,7 +175,7 @@ export default function sortableContainer<P>(
       return node.sortableInfo.manager === this.manager
     }
 
-    handleMove = event => {
+    handleMove = (event: TouchEvent | MouseEvent) => {
       const { distance, pressThreshold } = this.props
 
       if (!this.state.sorting && this.touched && !this._awaitingUpdateBeforeSortStart) {
@@ -188,7 +190,7 @@ export default function sortableContainer<P>(
 
         if (!distance && (!pressThreshold || combinedDelta >= pressThreshold)) {
           clearTimeout(this.cancelTimer)
-          this.cancelTimer = setTimeout(this.cancel, 0)
+          this.cancelTimer = window.setTimeout(this.cancel, 0)
         } else if (distance && combinedDelta >= distance && this.manager.isActive()) {
           this.handlePress(event)
         }
@@ -970,7 +972,7 @@ export default function sortableContainer<P>(
 
       return (
         node &&
-        node.sortableInfo &&
+        isSortableNode(node) &&
         !node.sortableInfo.disabled &&
         (useDragHandle ? isSortableHandle(target) : target.sortableInfo)
       )

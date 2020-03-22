@@ -8,6 +8,10 @@ import { WrappedComponent, SortableElementProps, SortableNode } from './types'
 
 const omittedProps = ['index', 'collection', 'disabled']
 
+export function isSortableNode(node: any): node is SortableNode {
+  return !!node.sortableInfo
+}
+
 export function sortableElement<P extends { isDragging: boolean }>(
   WrappedComponent: WrappedComponent<P>,
   config = { withRef: false }
