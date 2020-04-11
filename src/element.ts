@@ -3,20 +3,17 @@ import { ManagerContext } from './manager'
 
 import { SortableNode, CollectionKey } from './types'
 
-export function isSortableNode(node: any): node is SortableNode {
-  return !!node.sortableInfo
-}
+export const isSortableNode = (node: any): node is SortableNode => !!node.sortableInfo
 
 type Options = {
   index: number
   collection?: CollectionKey
   disabled?: boolean
 }
-export const useElement = ({
-  index,
-  collection = 0,
-  disabled
-}: Options): [MutableRefObject<HTMLElement | undefined>, { isDragging: boolean }] => {
+
+type Result = [MutableRefObject<HTMLElement | undefined>, { isDragging: boolean }]
+
+export const useElement = ({ index, collection = 0, disabled }: Options): Result => {
   const ref = useRef<HTMLElement>()
   const context = useContext(ManagerContext)
   const [isDragging, setIsDragging] = useState(false)

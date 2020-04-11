@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
-import { SortableContainer, SortableHandle, useElement } from '../index'
+import { SortableContainer, useHandle, useElement } from '../index'
 import arrayMove from 'array-move'
 import VirtualList from 'react-tiny-virtual-list'
 import { FixedSizeList, VariableSizeList } from 'react-window'
@@ -27,8 +27,8 @@ function getItems(count, height) {
   })
 }
 
-const Handle = SortableHandle(({ tabIndex }) => (
-  <div className={style.handle} tabIndex={tabIndex}>
+const Handle = ({ tabIndex }) => (
+  <div className={style.handle} tabIndex={tabIndex} ref={useHandle()}>
     <svg viewBox='0 0 50 50'>
       <path
         d='M 0 7.5 L 0 12.5 L 50 12.5 L 50 7.5 L 0 7.5 z M 0 22.5 L 0 27.5 L 50 27.5 L 50 22.5 L 0 22.5 z M 0 37.5 L 0 42.5 L 50 42.5 L 50 37.5 L 0 37.5 z'
@@ -36,7 +36,7 @@ const Handle = SortableHandle(({ tabIndex }) => (
       />
     </svg>
   </div>
-))
+)
 
 const Item = ({
   tabbable,

@@ -13,10 +13,6 @@ export type SortableNode = HTMLElement & {
   }
 }
 
-export type SortableHandle = HTMLElement & {
-  isSortableHandle: true
-}
-
 export type Axis = 'x' | 'y' | 'xy'
 
 export type Offset = number | string
@@ -127,7 +123,5 @@ export function SortableContainer<P>(
   wrappedComponent: WrappedComponent<P>,
   config?: Config
 ): React.ComponentClass<P & SortableContainerProps>
-
-export function SortableHandle<P>(wrappedComponent: WrappedComponent<P>, config?: Config): React.ComponentClass<P>
 
 export function arrayMove<T>(collection: T[], previousIndex: number, newIndex: number): T[]
