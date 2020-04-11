@@ -1,14 +1,20 @@
 import React from 'react'
 import { Manager } from './manager'
 
+export type CollectionKey = number | string
+
 export type SortableNode = HTMLElement & {
   sortableInfo: {
-    collection: Offset
+    collection: CollectionKey
     disabled?: boolean
     index: number
     manager: Manager
     setDragging: (isDragging: boolean) => void
   }
+}
+
+export type SortableHandle = HTMLElement & {
+  isSortableHandle: true
 }
 
 export type Axis = 'x' | 'y' | 'xy'
@@ -18,7 +24,7 @@ export type Offset = number | string
 export interface SortStart {
   node: Element
   index: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
   helper: HTMLElement
@@ -28,7 +34,7 @@ export interface SortOver {
   index: number
   oldIndex: number
   newIndex: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
   helper: HTMLElement
@@ -37,28 +43,32 @@ export interface SortOver {
 export interface SortEnd {
   oldIndex: number
   newIndex: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
 }
 
-export type SortEvent = React.MouseEvent<any> | React.TouchEvent<any>
-
-export type SortEventWithTag = SortEvent & {
-  target: {
-    tagName: string
-  }
+export type SortMouseEvent = Omit<MouseEvent, 'target'> & {
+  target: HTMLElement
 }
 
-export type SortStartHandler = (sort: SortStart, event: SortEvent) => void
+export type SortTouchEvent = Omit<TouchEvent, 'target'> & {
+  target: HTMLElement
+}
 
-export type SortMoveHandler = (event: SortEvent) => void
+export type SortKeyboardEvent = Omit<KeyboardEvent, 'target'> & {
+  target: HTMLElement
+}
 
-export type SortEndHandler = (sort: SortEnd, event: SortEvent) => void
+export type SortEvent = SortMouseEvent | SortTouchEvent
 
-export type SortOverHandler = (sort: SortOver, event: SortEvent) => void
+export type SortStartHandler = (sort: SortStart, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
 
-export type ContainerGetter = (element: React.ReactElement<any>) => HTMLElement | Promise<HTMLElement>
+export type SortMoveHandler = (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
+
+export type SortEndHandler = (sort: SortEnd, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
+
+export type SortOverHandler = (sort: SortOver, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
 
 export type HelperContainerGetter = () => HTMLElement
 
@@ -88,7 +98,7 @@ export interface SortableContainerProps {
   pressDelay?: number
   pressThreshold?: number
   distance?: number
-  shouldCancelStart?: (event: SortEvent | SortEventWithTag) => boolean
+  shouldCancelStart?: (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => boolean
   updateBeforeSortStart?: SortStartHandler
   onSortStart?: SortStartHandler
   onSortMove?: SortMoveHandler
@@ -99,7 +109,7 @@ export interface SortableContainerProps {
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
   lockOffset?: Offset | [Offset, Offset]
-  getContainer?: ContainerGetter
+  getContainer?: (element?: React.ReactInstance) => HTMLElement
   getHelperDimensions?: (sort: SortStart) => Dimensions
   helperContainer?: HTMLElement | HelperContainerGetter
   contentWindow: Window | (() => Window)
@@ -107,7 +117,7 @@ export interface SortableContainerProps {
 
 export interface SortableElementProps {
   index: number
-  collection?: Offset
+  collection?: CollectionKey
   disabled?: boolean
 }
 

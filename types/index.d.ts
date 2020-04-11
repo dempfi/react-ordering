@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { CollectionKey } from '../src/types'
 
 export type Axis = 'x' | 'y' | 'xy'
 
@@ -7,7 +8,7 @@ export type Offset = number | string
 export interface SortStart {
   node: Element
   index: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
   helper: HTMLElement
@@ -17,7 +18,7 @@ export interface SortOver {
   index: number
   oldIndex: number
   newIndex: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
   helper: HTMLElement
@@ -26,7 +27,7 @@ export interface SortOver {
 export interface SortEnd {
   oldIndex: number
   newIndex: number
-  collection: Offset
+  collection: CollectionKey
   isKeySorting: boolean
   nodes: HTMLElement[]
 }

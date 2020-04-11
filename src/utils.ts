@@ -1,5 +1,6 @@
 /* global process */
 import invariant from 'invariant'
+import { SortTouchEvent } from './types'
 
 export function arrayMove(array, from, to) {
   // Will be deprecated soon. Consumers should install 'array-move' instead
@@ -78,7 +79,7 @@ export function setTransition(node, transition) {
   node.style[`${vendorPrefix}Transition`] = transition
 }
 
-export function closest(el, fn) {
+export function closest<T>(el: HTMLElement, fn: (el: any) => el is T) {
   while (el) {
     if (fn(el)) {
       return el
@@ -113,12 +114,12 @@ export function getElementMargin(element: Element) {
   }
 }
 
-export function provideDisplayName(prefix: string, Component: React.ComponentType) {
+export function provideDisplayName<T>(prefix: string, Component: React.ComponentType<T>) {
   const componentName = Component.displayName || Component.name
   return componentName ? `${prefix}(${componentName})` : prefix
 }
 
-export function getScrollAdjustedBoundingClientRect(node, scrollDelta) {
+export function getScrollAdjustedBoundingClientRect(node: HTMLElement, scrollDelta: { top: number; left: number }) {
   const boundingClientRect = node.getBoundingClientRect()
 
   return {
@@ -127,7 +128,7 @@ export function getScrollAdjustedBoundingClientRect(node, scrollDelta) {
   }
 }
 
-export function getPosition(event: TouchEvent | MouseEvent) {
+export function getPosition(event: SortTouchEvent | { pageX: number; pageY: number }) {
   if (isTouchEvent(event)) {
     if (event.touches && event.touches.length) {
       return {
@@ -148,7 +149,7 @@ export function getPosition(event: TouchEvent | MouseEvent) {
   }
 }
 
-export const isTouchEvent = (event: any): event is TouchEvent =>
+export const isTouchEvent = (event: any): event is SortTouchEvent =>
   (event.touches && event.touches.length) || (event.changedTouches && event.changedTouches.length)
 
 export function getEdgeOffset(
@@ -250,7 +251,7 @@ export function getScrollingParent(el) {
   }
 }
 
-export function getContainerGridGap(element: HTMLLIElement) {
+export function getContainerGridGap(element: HTMLElement) {
   const style = window.getComputedStyle(element)
 
   if (style.display === 'grid') {

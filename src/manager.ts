@@ -1,12 +1,17 @@
 import React from 'react'
-import { SortableNode } from './types'
+import { SortableNode, CollectionKey } from './types'
 
-type Ref = { node: SortableNode }
+type Ref = {
+  node: SortableNode
+  edgeOffset?: { left: number; top: number }
+  boundingClientRect?: { left: number; top: number }
+  translate?: { x: number; y: number }
+}
 
 export class Manager {
-  refs: Record<number, Ref[]> = {}
-  isKeySorting?: boolean
-  _active?: { collection: number; index: number }
+  refs: Record<CollectionKey, Ref[]> = {}
+  isKeySorting: boolean = false
+  private _active?: { collection: CollectionKey; index: number }
 
   get active() {
     return this._active
@@ -18,7 +23,7 @@ export class Manager {
     if (newActive) this.getActive()!.node.sortableInfo.setDragging(true)
   }
 
-  add(collection: number, ref: Ref) {
+  add(collection: CollectionKey, ref: Ref) {
     if (!this.refs[collection]) {
       this.refs[collection] = []
     }
@@ -26,7 +31,7 @@ export class Manager {
     this.refs[collection].push(ref)
   }
 
-  remove(collection: number, ref: Ref) {
+  remove(collection: CollectionKey, ref: Ref) {
     const index = this.findIndex(collection, ref)
 
     if (index !== -1) {
@@ -49,7 +54,7 @@ export class Manager {
     )
   }
 
-  findIndex(collection: number, ref: Ref) {
+  findIndex(collection: CollectionKey, ref: Ref) {
     return this.refs[collection].indexOf(ref)
   }
 

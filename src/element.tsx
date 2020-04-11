@@ -25,6 +25,8 @@ export function sortableElement<P extends { isDragging: boolean }>(
       collection: 0
     }
 
+    context!: { manager: Manager }
+
     node!: SortableNode
     ref!: { node: SortableNode }
 
@@ -72,11 +74,11 @@ export function sortableElement<P extends { isDragging: boolean }>(
       this.node = node
       this.ref = { node }
 
-      this.context.manager.add(collection, this.ref)
+      this.context.manager.add(collection!, this.ref)
     }
 
     unregister(collection = this.props.collection) {
-      this.context.manager.remove(collection, this.ref)
+      this.context.manager.remove(collection!, this.ref)
     }
 
     getWrappedInstance() {

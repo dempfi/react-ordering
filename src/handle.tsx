@@ -3,6 +3,7 @@ import { findDOMNode } from 'react-dom'
 import invariant from 'invariant'
 
 import { provideDisplayName } from './utils'
+import { SortableHandle } from './types'
 
 export function sortableHandle(WrappedComponent, config = { withRef: false }) {
   return class WithSortableHandle extends React.Component {
@@ -29,6 +30,6 @@ export function sortableHandle(WrappedComponent, config = { withRef: false }) {
   }
 }
 
-export function isSortableHandle(node) {
-  return node.sortableHandle != null
+export function isSortableHandle(node: any): node is SortableHandle {
+  return !!node.sortableHandle
 }
