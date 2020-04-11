@@ -1,97 +1,50 @@
-import React from 'react'
-import { findDOMNode } from 'react-dom'
-import invariant from 'invariant'
-import { ManagerContext, Manager } from './manager'
+import { useRef, useEffect, useContext, useState, MutableRefObject } from 'react'
+import { ManagerContext } from './manager'
 
-import { provideDisplayName, omit } from './utils'
-import { WrappedComponent, SortableElementProps, SortableNode } from './types'
-
-const omittedProps = ['index', 'collection', 'disabled']
+import { SortableNode, CollectionKey } from './types'
 
 export function isSortableNode(node: any): node is SortableNode {
   return !!node.sortableInfo
 }
 
-export function sortableElement<P extends { isDragging: boolean }>(
-  WrappedComponent: WrappedComponent<P>,
-  config = { withRef: false }
-) {
-  return class extends React.Component<SortableElementProps, { dragging: boolean }> {
-    static displayName = provideDisplayName('sortableElement', WrappedComponent)
+type Options = {
+  index: number
+  collection?: CollectionKey
+  disabled?: boolean
+}
+export const useElement = ({
+  index,
+  collection = 0,
+  disabled
+}: Options): [MutableRefObject<HTMLElement | undefined>, { isDragging: boolean }] => {
+  const ref = useRef<HTMLElement>()
+  const context = useContext(ManagerContext)
+  const [isDragging, setIsDragging] = useState(false)
 
-    static contextType = ManagerContext
+  useEffect(() => {
+    if (!ref.current) return
+    const node = ref.current as SortableNode
 
-    static defaultProps = {
-      collection: 0
-    }
-
-    context!: { manager: Manager }
-
-    node!: SortableNode
-    ref!: { node: SortableNode }
-
-    state = { dragging: false }
-
-    componentDidMount() {
-      this.register()
-    }
-
-    componentDidUpdate(prevProps: SortableElementProps) {
-      if (this.node) {
-        if (prevProps.index !== this.props.index) {
-          this.node.sortableInfo.index = this.props.index
-        }
-
-        if (prevProps.disabled !== this.props.disabled) {
-          this.node.sortableInfo.disabled = this.props.disabled
-        }
-      }
-
-      if (prevProps.collection !== this.props.collection) {
-        this.unregister(prevProps.collection)
-        this.register()
+    node.sortableInfo = {
+      collection,
+      disabled,
+      index,
+      manager: context.manager,
+      setDragging: (dragging: boolean) => {
+        setIsDragging(dragging)
       }
     }
 
-    componentWillUnmount() {
-      this.unregister()
-    }
+    context.manager?.add(collection!, { node })
+    return () => context.manager?.remove(collection!, { node })
+  }, [collection])
 
-    register() {
-      const { collection, disabled, index } = this.props
-      const node = findDOMNode(this) as SortableNode
+  useEffect(() => {
+    if (!ref.current) return
+    const node = ref.current as SortableNode
+    node.sortableInfo.index = index
+    node.sortableInfo.disabled = disabled
+  }, [index, disabled])
 
-      node.sortableInfo = {
-        collection: collection!,
-        disabled,
-        index,
-        manager: this.context.manager,
-        setDragging: (dragging: boolean) => {
-          if (this.state.dragging !== dragging) this.setState({ dragging })
-        }
-      }
-
-      this.node = node
-      this.ref = { node }
-
-      this.context.manager.add(collection!, this.ref)
-    }
-
-    unregister(collection = this.props.collection) {
-      this.context.manager.remove(collection!, this.ref)
-    }
-
-    getWrappedInstance() {
-      invariant(
-        config.withRef,
-        'To access the wrapped instance, you need to pass in {withRef: true} as the second argument of the SortableElement() call'
-      )
-      return this.refs.wrappedInstance
-    }
-
-    render() {
-      const ref = config.withRef ? 'wrappedInstance' : null
-      return <WrappedComponent ref={ref} {...omit(this.props, omittedProps)} isDragging={this.state.dragging} />
-    }
-  }
+  return [ref, { isDragging }]
 }

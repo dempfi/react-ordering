@@ -115,12 +115,6 @@ export interface SortableContainerProps {
   contentWindow: Window | (() => Window)
 }
 
-export interface SortableElementProps {
-  index: number
-  collection?: CollectionKey
-  disabled?: boolean
-}
-
 export interface Config {
   withRef: boolean
 }
@@ -133,11 +127,6 @@ export function SortableContainer<P>(
   wrappedComponent: WrappedComponent<P>,
   config?: Config
 ): React.ComponentClass<P & SortableContainerProps>
-
-export function SortableElement<P>(
-  wrappedComponent: WrappedComponent<P>,
-  config?: Config
-): React.ComponentClass<P & SortableElementProps>
 
 export function SortableHandle<P>(wrappedComponent: WrappedComponent<P>, config?: Config): React.ComponentClass<P>
 

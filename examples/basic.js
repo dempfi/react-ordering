@@ -1,9 +1,12 @@
 import React, { Component } from 'react'
 import { render } from 'react-dom'
-import { sortableContainer, sortableElement } from 'react-ordering'
+import { sortableContainer, useElement } from 'react-ordering'
 import arrayMove from 'array-move'
 
-const SortableItem = sortableElement(({ value }) => <li>{value}</li>)
+const SortableItem = ({ value, index }) => {
+  const [ref] = useElement({ index })
+  return <li ref={ref}>{value}</li>
+}
 
 const SortableContainer = sortableContainer(({ children }) => {
   return <ul>{children}</ul>

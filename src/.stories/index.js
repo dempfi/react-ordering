@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
-import { SortableContainer, SortableElement, SortableHandle } from '../index'
+import { SortableContainer, SortableHandle, useElement } from '../index'
 import arrayMove from 'array-move'
 import VirtualList from 'react-tiny-virtual-list'
 import { FixedSizeList, VariableSizeList } from 'react-window'
@@ -38,45 +38,45 @@ const Handle = SortableHandle(({ tabIndex }) => (
   </div>
 ))
 
-const Item = SortableElement(
-  ({
-    tabbable,
-    className,
-    isDisabled,
-    height,
-    style: propStyle,
-    shouldUseDragHandle,
-    value,
-    itemIndex,
-    isSorting,
-    isDragging
-  }) => {
-    const bodyTabIndex = tabbable && !shouldUseDragHandle ? 0 : -1
-    const handleTabIndex = tabbable && shouldUseDragHandle ? 0 : -1
+const Item = ({
+  tabbable,
+  className,
+  isDisabled,
+  height,
+  style: propStyle,
+  shouldUseDragHandle,
+  value,
+  itemIndex,
+  isSorting,
+  ...rest
+}) => {
+  const [ref, { isDragging }] = useElement(rest)
+  const bodyTabIndex = tabbable && !shouldUseDragHandle ? 0 : -1
+  const handleTabIndex = tabbable && shouldUseDragHandle ? 0 : -1
 
-    return (
-      <div
-        className={classNames(
-          className,
-          isDisabled && style.disabled,
-          isSorting && style.sorting,
-          shouldUseDragHandle && style.containsDragHandle
-        )}
-        style={{
-          height,
-          ...propStyle
-        }}
-        tabIndex={bodyTabIndex}
-        data-index={itemIndex}
-      >
-        {shouldUseDragHandle && <Handle tabIndex={handleTabIndex} />}
-        <div className={style.wrapper}>
-          <span>Item</span> {value} {isDragging.toString()}
-        </div>
+  return (
+    <div
+      className={classNames(
+        className,
+        isDisabled && style.disabled,
+        isSorting && style.sorting,
+        shouldUseDragHandle && style.containsDragHandle
+      )}
+      style={{
+        height,
+        ...propStyle
+      }}
+      tabIndex={bodyTabIndex}
+      data-index={itemIndex}
+      ref={ref}
+    >
+      {shouldUseDragHandle && <Handle tabIndex={handleTabIndex} />}
+      <div className={style.wrapper}>
+        <span>Item</span> {value} {isDragging.toString()}
       </div>
-    )
-  }
-)
+    </div>
+  )
+}
 
 const SortableList = SortableContainer(
   ({ className, items, disabledItems = [], itemClass, isSorting, shouldUseDragHandle, type }) => {
@@ -127,11 +127,12 @@ class SortableListWithCustomContainer extends React.Component {
   }
 }
 
-const Category = SortableElement(props => {
+const Category = props => {
   const tabIndex = props.tabbable ? 0 : -1
+  const [ref] = useElement(props)
 
   return (
-    <div className={style.category}>
+    <div className={style.category} ref={ref}>
       <div className={style.categoryHeader}>
         <Handle tabIndex={tabIndex} />
         <span>Category {props.value}</span>
@@ -145,7 +146,7 @@ const Category = SortableElement(props => {
       />
     </div>
   )
-})
+}
 
 class ListWrapper extends Component {
   state = {
@@ -324,7 +325,7 @@ const SortableVirtualizedList = SortableContainer(VirtualizedListWrapper, {
   withRef: true
 })
 const SortableTable = SortableContainer(Table, { withRef: true })
-const SortableRowRenderer = SortableElement(defaultTableRowRenderer)
+// const SortableRowRenderer = SortableElement(defaultTableRowRenderer)
 
 class TableWrapper extends Component {
   static propTypes = {

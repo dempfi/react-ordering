@@ -1,16 +1,16 @@
 import React from 'react'
-import { sortableElement } from '../../../../src'
+import { useElement } from '../../../../src'
 
 import styles from './Item.scss'
 
-function Item(props) {
-  const { children } = props
+function Item({ children, ...rest }) {
+  const [ref] = useElement(rest)
 
   return (
-    <div className={styles.root} tabIndex={0}>
+    <div className={styles.root} tabIndex={0} ref={ref}>
       {children}
     </div>
   )
 }
 
-export default sortableElement(Item)
+export default Item

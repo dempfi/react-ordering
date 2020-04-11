@@ -92,12 +92,6 @@ export interface SortableContainerProps {
   helperContainer?: HTMLElement | HelperContainerGetter
 }
 
-export interface SortableElementProps {
-  index: number
-  collection?: Offset
-  disabled?: boolean
-}
-
 export interface Config {
   withRef: boolean
 }
@@ -110,11 +104,6 @@ export function SortableContainer<P>(
   wrappedComponent: WrappedComponent<P>,
   config?: Config
 ): React.ComponentClass<P & SortableContainerProps>
-
-export function SortableElement<P extends { isDragging: boolean }>(
-  wrappedComponent: WrappedComponent<P>,
-  config?: Config
-): React.ComponentClass<Omit<P, 'isDragging'> & SortableElementProps>
 
 export function SortableHandle<P>(wrappedComponent: WrappedComponent<P>, config?: Config): React.ComponentClass<P>
 

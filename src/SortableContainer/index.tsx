@@ -59,7 +59,6 @@ export default function sortableContainer<P>(
     pressTimer?: number
     cancelTimer?: number
     _awaitingUpdateBeforeSortStart?: boolean
-    delta?: { x: number; y: number }
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     translate?: { x: number; y: number }
     initialOffset?: { x: number; y: number }
@@ -67,7 +66,6 @@ export default function sortableContainer<P>(
     initialWindowScroll?: { left: number; top: number }
     initialFocusedNode?: HTMLElement
     newIndex?: number
-    node?: SortableNode
     margin?: { bottom: number; left: number; right: number; top: number }
     gridGap?: { x: number; y: number }
     width?: number
@@ -115,9 +113,9 @@ export default function sortableContainer<P>(
 
         this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
 
-        events.start.forEach(name => this.container.addEventListener(name, this.handleStart as any, false))
-        events.end.forEach(name => this.container.addEventListener(name, this.handleEnd as any, false))
-        events.move.forEach(name => this.container.addEventListener(name, this.handleMove as any, false))
+        events.start.forEach(name => this.container.addEventListener(name, this.handleStartEvent as any, false))
+        events.end.forEach(name => this.container.addEventListener(name, this.handleEndEvent as any, false))
+        events.move.forEach(name => this.container.addEventListener(name, this.handleMoveEvent as any, false))
 
         this.container.addEventListener('keydown', this.handleKeyDown as any)
       })
@@ -131,14 +129,14 @@ export default function sortableContainer<P>(
         return
       }
 
-      events.start.forEach(name => this.container.removeEventListener(name, this.handleStart as any))
-      events.end.forEach(name => this.container.removeEventListener(name, this.handleEnd as any))
-      events.move.forEach(name => this.container.removeEventListener(name, this.handleMove as any))
+      events.start.forEach(name => this.container.removeEventListener(name, this.handleStartEvent as any))
+      events.end.forEach(name => this.container.removeEventListener(name, this.handleEndEvent as any))
+      events.move.forEach(name => this.container.removeEventListener(name, this.handleMoveEvent as any))
 
       this.container.removeEventListener('keydown', this.handleKeyDown as any)
     }
 
-    handleStart = (event: SortEvent) => {
+    handleStartEvent = (event: SortEvent) => {
       const { distance, shouldCancelStart } = this.props
 
       if ((!isTouchEvent(event) && event.button === 2) || shouldCancelStart!(event)) {
@@ -175,9 +173,9 @@ export default function sortableContainer<P>(
 
         if (!distance) {
           if (this.props.pressDelay === 0) {
-            this.handlePress(event)
+            this.handleSortStart(event)
           } else {
-            this.pressTimer = setTimeout(() => this.handlePress(event), this.props.pressDelay)
+            this.pressTimer = setTimeout(() => this.handleSortStart(event), this.props.pressDelay)
           }
         }
       }
@@ -187,7 +185,7 @@ export default function sortableContainer<P>(
       return node.sortableInfo.manager === this.manager
     }
 
-    handleMove = (event: SortMouseEvent | SortTouchEvent) => {
+    handleMoveEvent = (event: SortMouseEvent | SortTouchEvent) => {
       const { distance, pressThreshold } = this.props
 
       if (!this.state.sorting && this.touched && !this._awaitingUpdateBeforeSortStart) {
@@ -198,18 +196,16 @@ export default function sortableContainer<P>(
         }
         const combinedDelta = Math.abs(delta.x) + Math.abs(delta.y)
 
-        this.delta = delta
-
         if (!distance && (!pressThreshold || combinedDelta >= pressThreshold)) {
           clearTimeout(this.cancelTimer)
           this.cancelTimer = window.setTimeout(this.cancel, 0)
         } else if (distance && combinedDelta >= distance && this.manager.isActive()) {
-          this.handlePress(event)
+          this.handleSortStart(event)
         }
       }
     }
 
-    handleEnd = () => {
+    handleEndEvent = () => {
       this.touched = false
       this.cancel()
     }
@@ -226,7 +222,7 @@ export default function sortableContainer<P>(
       }
     }
 
-    handlePress = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
+    handleSortStart = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
       const active = this.manager.getActive()
 
       if (!active) return
@@ -261,7 +257,6 @@ export default function sortableContainer<P>(
       const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
       const dimensions = getHelperDimensions!({ index, node, collection })
 
-      this.node = node
       this.margin = margin
       this.gridGap = gridGap
       this.width = dimensions.width
@@ -917,7 +912,7 @@ export default function sortableContainer<P>(
         collection
       }
 
-      this.handlePress(event)
+      this.handleSortStart(event)
     }
 
     keyMove = (shift: number) => {
