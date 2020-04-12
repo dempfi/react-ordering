@@ -19,7 +19,7 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current || !context.manager) return
     const node = ref.current as SortableNode
 
     node.sortableInfo = {
@@ -34,10 +34,10 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
 
     context.manager?.add(collection!, { node })
     return () => context.manager?.remove(collection!, { node })
-  }, [collection])
+  }, [collection, context.manager])
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current || !ref.current.sortableInfo) return
     const node = ref.current as SortableNode
     node.sortableInfo.index = index
     node.sortableInfo.disabled = disabled

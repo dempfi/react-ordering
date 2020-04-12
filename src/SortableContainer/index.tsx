@@ -66,18 +66,14 @@ export default function sortableContainer<P>(
     initialWindowScroll?: { left: number; top: number }
     initialFocusedNode?: HTMLElement
     newIndex?: number
-    margin?: { bottom: number; left: number; right: number; top: number }
-    gridGap?: { x: number; y: number }
-    width?: number
-    height?: number
+    helperWidth?: number
+    helperHeight?: number
     marginOffset?: { x: number; y: number }
-    boundingClientRect?: DOMRect
     containerBoundingRect?: DOMRect
     index?: number
-    axis = { x: false, y: true }
     offsetEdge?: { left: number; top: number }
     sortableGhost?: SortableNode
-    prevIndex: number | undefined
+    prevIndex?: number
     position?: { x: number; y: number }
     listenerNode?: HTMLElement | Window
     minTranslate = { x: 0, y: 0 }
@@ -89,6 +85,14 @@ export default function sortableContainer<P>(
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
+
+    get axis() {
+      if (!this.props.axis) return { x: false, y: true }
+      return {
+        x: this.props.axis.indexOf('x') >= 0,
+        y: this.props.axis.indexOf('y') >= 0
+      }
+    }
 
     componentDidMount() {
       const { useWindowAsScrollContainer } = this.props
@@ -257,30 +261,24 @@ export default function sortableContainer<P>(
       const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
       const dimensions = getHelperDimensions!({ index, node, collection })
 
-      this.margin = margin
-      this.gridGap = gridGap
-      this.width = dimensions.width
-      this.height = dimensions.height
+      this.helperWidth = dimensions.width
+      this.helperHeight = dimensions.height
       this.marginOffset = {
-        x: this.margin.left + this.margin.right + this.gridGap.x,
-        y: Math.max(this.margin.top, this.margin.bottom, this.gridGap.y)
+        x: margin.left + margin.right + gridGap.x,
+        y: Math.max(margin.top, margin.bottom, gridGap.y)
       }
-      this.boundingClientRect = node.getBoundingClientRect()
+      const boundingClientRect = node.getBoundingClientRect()
       this.containerBoundingRect = containerBoundingRect
       this.index = index
       this.newIndex = index
 
-      this.axis = {
-        x: axis!.indexOf('x') >= 0,
-        y: axis!.indexOf('y') >= 0
-      }
       this.offsetEdge = getEdgeOffset(node, this.container)
 
       if (isKeySorting) {
         this.initialOffset = getPosition({
           ...event,
-          pageX: this.boundingClientRect.left,
-          pageY: this.boundingClientRect.top
+          pageX: boundingClientRect.left,
+          pageY: boundingClientRect.top
         })
       } else {
         this.initialOffset = getPosition(event as SortMouseEvent | SortTouchEvent)
@@ -299,12 +297,12 @@ export default function sortableContainer<P>(
 
       setInlineStyles(this.helper, {
         boxSizing: 'border-box',
-        height: `${this.height}px`,
-        left: `${this.boundingClientRect.left - margin.left}px`,
+        height: `${this.helperHeight}px`,
+        left: `${boundingClientRect.left - margin.left}px`,
         pointerEvents: 'none',
         position: 'fixed',
-        top: `${this.boundingClientRect.top - margin.top}px`,
-        width: `${this.width}px`
+        top: `${boundingClientRect.top - margin.top}px`,
+        width: `${this.helperWidth}px`
       })
 
       if (isKeySorting) {
@@ -341,39 +339,39 @@ export default function sortableContainer<P>(
         const containerRight = containerLeft + containerWidth
 
         if (this.axis.x) {
-          this.minTranslate.x = containerLeft - this.boundingClientRect.left
-          this.maxTranslate.x = containerRight - (this.boundingClientRect.left + this.width)
+          this.minTranslate.x = containerLeft - boundingClientRect.left
+          this.maxTranslate.x = containerRight - (boundingClientRect.left + this.helperWidth)
         }
 
         if (this.axis.y) {
-          this.minTranslate.y = containerTop - this.boundingClientRect.top
-          this.maxTranslate.y = containerBottom - (this.boundingClientRect.top + this.height)
+          this.minTranslate.y = containerTop - boundingClientRect.top
+          this.maxTranslate.y = containerBottom - (boundingClientRect.top + this.helperHeight)
         }
       } else {
         if (this.axis.x) {
           this.minTranslate.x =
             (useWindowAsScrollContainer ? 0 : containerBoundingRect.left) -
-            this.boundingClientRect.left -
-            this.width! / 2
+            boundingClientRect.left -
+            this.helperWidth! / 2
           this.maxTranslate.x =
             (useWindowAsScrollContainer
               ? this.contentWindow.innerWidth
               : containerBoundingRect.left + containerBoundingRect.width) -
-            this.boundingClientRect.left -
-            this.width! / 2
+            boundingClientRect.left -
+            this.helperWidth! / 2
         }
 
         if (this.axis.y) {
           this.minTranslate.y =
             (useWindowAsScrollContainer ? 0 : containerBoundingRect.top) -
-            this.boundingClientRect.top -
-            this.height! / 2
+            boundingClientRect.top -
+            this.helperHeight! / 2
           this.maxTranslate.y =
             (useWindowAsScrollContainer
               ? this.contentWindow.innerHeight
               : containerBoundingRect.top + containerBoundingRect.height) -
-            this.boundingClientRect.top -
-            this.height! / 2
+            boundingClientRect.top -
+            this.helperHeight! / 2
         }
       }
 
@@ -544,17 +542,17 @@ export default function sortableContainer<P>(
 
       if (lockToContainerEdges) {
         const [minLockOffset, maxLockOffset] = getLockPixelOffsets({
-          height: this.height,
+          height: this.helperHeight,
           lockOffset,
-          width: this.width
+          width: this.helperWidth
         })
         const minOffset = {
-          x: this.width! / 2 - minLockOffset.x,
-          y: this.height! / 2 - minLockOffset.y
+          x: this.helperWidth! / 2 - minLockOffset.x,
+          y: this.helperHeight! / 2 - minLockOffset.y
         }
         const maxOffset = {
-          x: this.width! / 2 - maxLockOffset.x,
-          y: this.height! / 2 - maxLockOffset.y
+          x: this.helperWidth! / 2 - maxLockOffset.x,
+          y: this.helperHeight! / 2 - maxLockOffset.y
         }
 
         translate.x = limit(this.minTranslate!.x + minOffset.x, this.maxTranslate!.x - maxOffset.x, translate.x)
@@ -600,8 +598,8 @@ export default function sortableContainer<P>(
         const width = node.offsetWidth
         const height = node.offsetHeight
         const offset = {
-          height: this.height! > height ? height / 2 : this.height! / 2,
-          width: this.width! > width ? width / 2 : this.width! / 2
+          height: this.helperHeight! > height ? height / 2 : this.helperHeight! / 2,
+          width: this.helperWidth! > width ? width / 2 : this.helperWidth! / 2
         }
 
         // For keyboard sorting, we want user input to dictate the position of the nodes
@@ -665,7 +663,7 @@ export default function sortableContainer<P>(
             ) {
               // If the current node is to the left on the same row, or above the node that's being dragged
               // then move it to the right
-              translate.x = this.width! + this.marginOffset!.x
+              translate.x = this.helperWidth! + this.marginOffset!.x
               if (edgeOffset.left + translate.x > this.containerBoundingRect!.width - offset.width) {
                 // If it moves passed the right bounds, then animate it to the first position of the next row.
                 // We just use the offset of the next node to calculate where to move, because that node's original position
@@ -687,7 +685,7 @@ export default function sortableContainer<P>(
             ) {
               // If the current node is to the right on the same row, or below the node that's being dragged
               // then move it to the left
-              translate.x = -(this.width! + this.marginOffset!.x)
+              translate.x = -(this.helperWidth! + this.marginOffset!.x)
               if (edgeOffset.left + translate.x < this.containerBoundingRect!.left + offset.width) {
                 // If it moves passed the left bounds, then animate it to the last position of the previous row.
                 // We just use the offset of the previous node to calculate where to move, because that node's original position
@@ -704,13 +702,13 @@ export default function sortableContainer<P>(
               mustShiftBackward ||
               (index > this.index! && sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left)
             ) {
-              translate.x = -(this.width! + this.marginOffset!.x)
+              translate.x = -(this.helperWidth! + this.marginOffset!.x)
               this.newIndex = index
             } else if (
               mustShiftForward ||
               (index < this.index! && sortingOffset.left + windowScrollDelta.left <= edgeOffset.left + offset.width)
             ) {
-              translate.x = this.width! + this.marginOffset!.x
+              translate.x = this.helperWidth! + this.marginOffset!.x
 
               if (this.newIndex == undefined) {
                 this.newIndex = index
@@ -722,13 +720,13 @@ export default function sortableContainer<P>(
             mustShiftBackward ||
             (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
           ) {
-            translate.y = -(this.height! + this.marginOffset!.y)
+            translate.y = -(this.helperHeight! + this.marginOffset!.y)
             this.newIndex = index
           } else if (
             mustShiftForward ||
             (index < this.index! && sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height)
           ) {
-            translate.y = this.height! + this.marginOffset!.y
+            translate.y = this.helperHeight! + this.marginOffset!.y
             if (this.newIndex == undefined) {
               this.newIndex = index
             }
@@ -773,11 +771,11 @@ export default function sortableContainer<P>(
 
         const deltaX =
           this.newIndex! > this.index!
-            ? newOffset.left - this.width! + newNode.offsetWidth - oldOffset.left
+            ? newOffset.left - this.helperWidth! + newNode.offsetWidth - oldOffset.left
             : newOffset.left - oldOffset.left
         const deltaY =
           this.newIndex! > this.index!
-            ? newOffset.top - this.height! + newNode.offsetHeight - oldOffset.top
+            ? newOffset.top - this.helperHeight! + newNode.offsetHeight - oldOffset.top
             : newOffset.top - oldOffset.top
 
         setTranslate3d(this.helper, {
@@ -831,11 +829,11 @@ export default function sortableContainer<P>(
       }
 
       this.autoScroller.update({
-        height: this.height,
+        height: this.helperHeight,
         maxTranslate: this.maxTranslate,
         minTranslate: this.minTranslate,
         translate: this.translate,
-        width: this.width
+        width: this.helperWidth
       })
     }
 
@@ -944,8 +942,8 @@ export default function sortableContainer<P>(
 
       const shouldAdjustForSize = prevIndex < newIndex
       const sizeAdjustment = {
-        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.width! : 0,
-        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.height! : 0
+        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.helperWidth! : 0,
+        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helperHeight! : 0
       }
 
       this.handleSortMove(
