@@ -18,9 +18,12 @@ export class MouseBackend extends Backend {
     this.container.removeEventListener('mouseup', this.handleMouseUp)
   }
 
-  private handleMouseDown(rawEvent: MouseEvent) {
+  lifted(element: HTMLElement) {}
+
+  private handleMouseDown = (rawEvent: MouseEvent) => {
     const event = rawEvent as ElementEvent
     if (event.button === 2) return
+    if (!this.delegate.canLift(event.target)) return
 
     /*
      * Fixes a bug in Firefox where the :active state of anchor tags
@@ -31,14 +34,18 @@ export class MouseBackend extends Backend {
       event.preventDefault()
     }
 
-    this.delegate.lift({ x: event.pageX, y: event.pageY }, event.target)
+    this.start({ x: event.pageX, y: event.pageY }, event.target)
   }
 
-  private handleMouseUp(rawEvent: MouseEvent) {
+  private handleMouseMove = (rawEvent: MouseEvent) => {
     const event = rawEvent as ElementEvent
+    this.move({ x: event.pageX, y: event.pageY }, event.target)
   }
 
-  private handleMouseMove(rawEvent: MouseEvent) {
+  private handleMouseUp = (rawEvent: MouseEvent) => {
     const event = rawEvent as ElementEvent
+    this.cancel()
+    this.delegate.drop({ x: event.pageX, y: event.pageY }, event.target)
+    window.removeEventListener('mousemove', this.handleMouseMove, false)
   }
 }

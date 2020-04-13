@@ -42,12 +42,15 @@ import {
   SortMouseEvent
 } from '../types'
 import { isSortableNode } from '../element'
+import { BackendDelegate } from '../backend/backend-delegate'
+import { Motion } from '../backend/backend'
+import { MouseBackend } from '../backend/mouse-backend'
 
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
   config: Config = { withRef: false }
 ) {
-  return class WithSortableContainer extends React.Component<SortableContainerProps> {
+  return class WithSortableContainer extends React.Component<SortableContainerProps> implements BackendDelegate {
     manager = new Manager()
     document!: Document
     container!: HTMLElement
@@ -79,13 +82,10 @@ export default function sortableContainer<P>(
     minTranslate = { x: 0, y: 0 }
     maxTranslate = { x: 0, y: 0 }
 
-    constructor(props: SortableContainerProps) {
-      super(props)
-    }
-
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
 
+    backend!: MouseBackend
     get axis() {
       if (!this.props.axis) return { x: false, y: true }
       return {
@@ -117,9 +117,11 @@ export default function sortableContainer<P>(
 
         this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
 
-        events.start.forEach(name => this.container.addEventListener(name, this.handleStartEvent as any, false))
-        events.end.forEach(name => this.container.addEventListener(name, this.handleEndEvent as any, false))
-        events.move.forEach(name => this.container.addEventListener(name, this.handleMoveEvent as any, false))
+        this.backend = new MouseBackend(this, this.container)
+        this.backend.attach()
+        // events.start.forEach(name => this.container.addEventListener(name, this.handleStartEvent as any, false))
+        // events.end.forEach(name => this.container.addEventListener(name, this.handleEndEvent as any, false))
+        // events.move.forEach(name => this.container.addEventListener(name, this.handleMoveEvent as any, false))
 
         this.container.addEventListener('keydown', this.handleKeyDown as any)
       })
@@ -140,73 +142,8 @@ export default function sortableContainer<P>(
       this.container.removeEventListener('keydown', this.handleKeyDown as any)
     }
 
-    handleStartEvent = (event: SortEvent) => {
-      const { distance, shouldCancelStart } = this.props
-
-      if ((!isTouchEvent(event) && event.button === 2) || shouldCancelStart!(event)) {
-        return
-      }
-
-      this.touched = true
-      this.position = getPosition(event)
-
-      const node = closest(event.target, isSortableNode)
-
-      if (node && this.nodeIsChild(node) && !this.state.sorting) {
-        const { useDragHandle } = this.props
-        const { index, collection, disabled } = node.sortableInfo
-
-        if (disabled) {
-          return
-        }
-
-        if (useDragHandle && !closest(event.target, isSortableHandle)) {
-          return
-        }
-
-        this.manager.active = { collection, index }
-
-        /*
-         * Fixes a bug in Firefox where the :active state of anchor tags
-         * prevent subsequent 'mousemove' events from being fired
-         * (see https://github.com/clauderic/react-ordering/issues/118)
-         */
-        if (!isTouchEvent(event) && event.target.tagName === NodeType.Anchor) {
-          event.preventDefault()
-        }
-
-        if (!distance) {
-          if (this.props.pressDelay === 0) {
-            this.handleSortStart(event)
-          } else {
-            this.pressTimer = setTimeout(() => this.handleSortStart(event), this.props.pressDelay)
-          }
-        }
-      }
-    }
-
     nodeIsChild = (node: SortableNode) => {
       return node.sortableInfo.manager === this.manager
-    }
-
-    handleMoveEvent = (event: SortMouseEvent | SortTouchEvent) => {
-      const { distance, pressThreshold } = this.props
-
-      if (!this.state.sorting && this.touched && !this._awaitingUpdateBeforeSortStart) {
-        const position = getPosition(event)
-        const delta = {
-          x: this.position!.x - position.x,
-          y: this.position!.y - position.y
-        }
-        const combinedDelta = Math.abs(delta.x) + Math.abs(delta.y)
-
-        if (!distance && (!pressThreshold || combinedDelta >= pressThreshold)) {
-          clearTimeout(this.cancelTimer)
-          this.cancelTimer = window.setTimeout(this.cancel, 0)
-        } else if (distance && combinedDelta >= distance && this.manager.isActive()) {
-          this.handleSortStart(event)
-        }
-      }
     }
 
     handleEndEvent = () => {
@@ -226,12 +163,13 @@ export default function sortableContainer<P>(
       }
     }
 
-    handleSortStart = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
-      const active = this.manager.getActive()
+    async lift(position: { x: number; y: number }, element: HTMLElement) {
+      const node = closest(element, isSortableNode)!
+      const { index, collection } = node.sortableInfo
+      this.manager.active = { collection, index }
+      console.log('lifted')
 
-      if (!active) return
       const {
-        axis,
         getHelperDimensions,
         helperClass,
         helperStyle,
@@ -240,14 +178,12 @@ export default function sortableContainer<P>(
         onSortStart,
         useWindowAsScrollContainer
       } = this.props
-      const { node, collection } = active
       const { isKeySorting } = this.manager
 
       if (typeof updateBeforeSortStart === 'function') {
         this._awaitingUpdateBeforeSortStart = true
 
         try {
-          const { index } = node.sortableInfo
           await updateBeforeSortStart({ collection, index, node, isKeySorting }, event)
         } finally {
           this._awaitingUpdateBeforeSortStart = false
@@ -255,7 +191,6 @@ export default function sortableContainer<P>(
       }
 
       // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
-      const { index } = node.sortableInfo
       const margin = getElementMargin(node)
       const gridGap = getContainerGridGap(this.container)
       const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
@@ -390,12 +325,8 @@ export default function sortableContainer<P>(
         this.listenerNode.addEventListener('mousedown', this.handleKeyEnd as any, true)
         this.listenerNode.addEventListener('keydown', this.handleKeyDown as any)
       } else {
-        events.move.forEach(eventName =>
-          this.listenerNode!.addEventListener(eventName, this.handleSortMove as any, false)
-        )
-        events.end.forEach(eventName =>
-          this.listenerNode!.addEventListener(eventName, this.handleSortEnd as any, false)
-        )
+        events.move.forEach(eventName => this.listenerNode!.addEventListener(eventName, this.move as any, false))
+        events.end.forEach(eventName => this.listenerNode!.addEventListener(eventName, this.drop as any, false))
       }
 
       this.setState({
@@ -423,24 +354,20 @@ export default function sortableContainer<P>(
       }
     }
 
-    handleSortMove = (event: SortMouseEvent | SortTouchEvent, ignoreTransition: boolean = false) => {
-      const { onSortMove } = this.props
+    move(position: { x: number; y: number }, motion: Motion) {
+      // const { onSortMove } = this.props
 
-      // Prevent scrolling on mobile
-      if (typeof event.preventDefault === 'function') {
-        event.preventDefault()
-      }
-
-      this.updateHelperPosition(event, ignoreTransition)
+      this.updateHelperPosition(position, motion === Motion.Snap)
       this.animateNodes()
       this.autoscroll()
 
-      if (onSortMove) {
-        onSortMove(event)
-      }
+      // FIXME
+      // if (onSortMove) {
+      //   onSortMove(event)
+      // }
     }
 
-    handleSortEnd = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
+    async drop() {
       const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
       const {
         active: { collection },
@@ -455,10 +382,8 @@ export default function sortableContainer<P>(
           this.listenerNode.removeEventListener('mousedown', this.handleKeyEnd as any, true)
           this.listenerNode.removeEventListener('keydown', this.handleKeyDown as any)
         } else {
-          events.move.forEach(eventName =>
-            this.listenerNode!.removeEventListener(eventName, this.handleSortMove as any)
-          )
-          events.end.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.handleSortEnd as any))
+          events.move.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.move as any))
+          events.end.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.drop as any))
         }
       }
 
@@ -503,22 +428,19 @@ export default function sortableContainer<P>(
       })
 
       if (typeof onSortEnd === 'function') {
-        onSortEnd(
-          {
-            collection,
-            newIndex: this.newIndex!,
-            oldIndex: this.index!,
-            isKeySorting,
-            nodes: nodes.map(r => r.node)
-          },
-          event
-        )
+        onSortEnd({
+          collection,
+          newIndex: this.newIndex!,
+          oldIndex: this.index!,
+          isKeySorting,
+          nodes: nodes.map(r => r.node)
+        })
       }
 
       this.touched = false
     }
 
-    updateHelperPosition(event: SortEvent, ignoreTransition: boolean) {
+    updateHelperPosition(offset: { x: number; y: number }, ignoreTransition: boolean) {
       const {
         lockAxis,
         lockOffset,
@@ -528,7 +450,6 @@ export default function sortableContainer<P>(
       } = this.props
       const { isKeySorting } = this.manager
 
-      const offset = getPosition(event)
       const translate = {
         x: offset.x - this.initialOffset!.x,
         y: offset.y - this.initialOffset!.y
@@ -573,14 +494,7 @@ export default function sortableContainer<P>(
     }
 
     animateNodes() {
-      const {
-        outOfTheWayAnimationDuration,
-        outOfTheWayAnimationEasing,
-        hideSortableGhost,
-        onSortOver,
-        dropAnimationDuration,
-        dropAnimationEasing
-      } = this.props
+      const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing, hideSortableGhost, onSortOver } = this.props
       const { containerScrollDelta, windowScrollDelta } = this
       const nodes = this.manager.getOrderedRefs()
       const sortingOffset = {
@@ -648,7 +562,6 @@ export default function sortableContainer<P>(
 
         if (outOfTheWayAnimationDuration) {
           setTransition(node, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
-          setTransition(node, `transform ${dropAnimationDuration}ms ${dropAnimationEasing}`)
         }
 
         if (this.axis.x) {
@@ -910,7 +823,7 @@ export default function sortableContainer<P>(
         collection
       }
 
-      this.handleSortStart(event)
+      this.lift(event)
     }
 
     keyMove = (shift: number) => {
@@ -946,7 +859,7 @@ export default function sortableContainer<P>(
         y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helperHeight! : 0
       }
 
-      this.handleSortMove(
+      this.move(
         {
           pageX: targetPosition.left + sizeAdjustment.x,
           pageY: targetPosition.top + sizeAdjustment.y
@@ -956,7 +869,7 @@ export default function sortableContainer<P>(
     }
 
     keyDrop = (event: SortKeyboardEvent) => {
-      this.handleSortEnd(event)
+      this.drop(event)
 
       if (this.initialFocusedNode) {
         this.initialFocusedNode.focus()
@@ -1015,6 +928,34 @@ export default function sortableContainer<P>(
         left: this.contentWindow.pageXOffset - this.initialWindowScroll!.left,
         top: this.contentWindow.pageYOffset - this.initialWindowScroll!.top
       }
+    }
+
+    //  ===========
+    // NEW PUBLIC API
+    get isSorting() {
+      return this.state.sorting
+    }
+
+    get pressDelay() {
+      return {
+        time: this.props.pressDelay!,
+        distanceThreshold: this.props.pressThreshold!
+      }
+    }
+
+    get moveDelay() {
+      return this.props.distance
+    }
+
+    canLift(element: HTMLElement) {
+      if (this.state.sorting) return false
+
+      const sortableElement = closest(element, isSortableNode)
+      if (!sortableElement || !this.nodeIsChild(sortableElement)) return false
+      if (sortableElement.sortableInfo.disabled) return false
+
+      if (this.props.useDragHandle && !closest(element, isSortableHandle)) return false
+      return true
     }
   }
 }
