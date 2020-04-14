@@ -1,6 +1,5 @@
 /* global process */
 import invariant from 'invariant'
-import { SortTouchEvent } from './types'
 
 export function arrayMove(array, from, to) {
   // Will be deprecated soon. Consumers should install 'array-move' instead
@@ -128,30 +127,6 @@ export function getScrollAdjustedBoundingClientRect(node: HTMLElement, scrollDel
   }
 }
 
-export function getPosition(event: SortTouchEvent | { pageX: number; pageY: number }) {
-  if (isTouchEvent(event)) {
-    if (event.touches && event.touches.length) {
-      return {
-        x: event.touches[0].pageX,
-        y: event.touches[0].pageY
-      }
-    } else {
-      return {
-        x: event.changedTouches[0].pageX,
-        y: event.changedTouches[0].pageY
-      }
-    }
-  } else {
-    return {
-      x: event.pageX,
-      y: event.pageY
-    }
-  }
-}
-
-export const isTouchEvent = (event: any): event is SortTouchEvent =>
-  (event.touches && event.touches.length) || (event.changedTouches && event.changedTouches.length)
-
 export function getEdgeOffset(
   node: HTMLElement,
   parent?: HTMLElement,
@@ -172,16 +147,6 @@ export function getEdgeOffset(
   }
 
   return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset)
-}
-
-export function getTargetIndex(newIndex, prevIndex, oldIndex) {
-  if (newIndex < oldIndex && newIndex > prevIndex) {
-    return newIndex - 1
-  } else if (newIndex > oldIndex && newIndex < prevIndex) {
-    return newIndex + 1
-  } else {
-    return newIndex
-  }
 }
 
 export function getLockPixelOffset({ lockOffset, width, height }) {

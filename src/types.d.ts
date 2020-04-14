@@ -105,10 +105,8 @@ export interface SortableContainerProps {
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
   lockOffset?: Offset | [Offset, Offset]
-  getContainer?: (element?: React.ReactInstance) => HTMLElement
   getHelperDimensions?: (sort: SortStart) => Dimensions
   helperContainer?: HTMLElement | HelperContainerGetter
-  contentWindow: Window | (() => Window)
 }
 
 export interface Config {
@@ -118,10 +116,5 @@ export interface Config {
 export type WrappedComponentFactory<P> = (props: P) => JSX.Element
 
 export type WrappedComponent<P> = React.ComponentClass<P> | React.SFC<P> | WrappedComponentFactory<P>
-
-export function SortableContainer<P>(
-  wrappedComponent: WrappedComponent<P>,
-  config?: Config
-): React.ComponentClass<P & SortableContainerProps>
 
 export function arrayMove<T>(collection: T[], previousIndex: number, newIndex: number): T[]

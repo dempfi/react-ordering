@@ -20,9 +20,8 @@ export abstract class Backend {
 
   abstract lifted(element: HTMLElement): void
 
-  protected start(position: { x: number; y: number }, element: HTMLElement) {
+  protected attemptLift(position: { x: number; y: number }, element: HTMLElement) {
     this.positionAtStart = position
-    console.log(this.positionAtStart)
     if (this.delegate.moveDelay) return
 
     if (!this.delegate.pressDelay || this.delegate.pressDelay.time === 0) {
@@ -34,13 +33,8 @@ export abstract class Backend {
     }
   }
 
-  protected move(position: { x: number; y: number }, element: HTMLElement) {
-    if (!this.positionAtStart) return
-
-    if (this.delegate.isSorting) {
-      this.delegate.move(position, this.motion, element)
-      return
-    }
+  protected attemptLiftAfterMove(position: { x: number; y: number }, element: HTMLElement) {
+    if (this.delegate.isSorting || !this.positionAtStart) return
 
     const x = this.positionAtStart!.x - position.x
     const y = this.positionAtStart!.y - position.y
@@ -59,8 +53,8 @@ export abstract class Backend {
   }
 
   protected cancel() {
-    this.positionAtStart = undefined
     if (this.pressDelayTimer) clearTimeout(this.pressDelayTimer)
     this.pressDelayTimer = undefined
+    this.positionAtStart = undefined
   }
 }

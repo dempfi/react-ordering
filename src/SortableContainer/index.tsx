@@ -1,6 +1,5 @@
 import React from 'react'
 import { findDOMNode } from 'react-dom'
-import invariant from 'invariant'
 
 import { isSortableHandle } from '../handle'
 import { Manager, ManagerContext } from '../manager'
@@ -8,42 +7,28 @@ import { Manager, ManagerContext } from '../manager'
 import {
   cloneNode,
   closest,
-  events,
   getScrollingParent,
   getContainerGridGap,
   getEdgeOffset,
   getElementMargin,
   getLockPixelOffsets,
-  getPosition,
-  isTouchEvent,
   limit,
-  NodeType,
   omit,
   provideDisplayName,
   setInlineStyles,
   setTransition,
   setTransitionDuration,
   setTranslate3d,
-  getTargetIndex,
   getScrollAdjustedBoundingClientRect
 } from '../utils'
 
 import { AutoScroller } from '../auto-scroller'
-import { defaultProps, orderingProps, defaultKeyCodes } from './props'
+import { defaultProps, orderingProps } from './props'
 
-import {
-  WrappedComponent,
-  Config,
-  SortableContainerProps,
-  SortableNode,
-  SortEvent,
-  SortTouchEvent,
-  SortKeyboardEvent,
-  SortMouseEvent
-} from '../types'
+import { WrappedComponent, Config, SortableContainerProps, SortableNode } from '../types'
 import { isSortableNode } from '../element'
 import { BackendDelegate } from '../backend/backend-delegate'
-import { Motion } from '../backend/backend'
+import { Motion, Backend } from '../backend/backend'
 import { MouseBackend } from '../backend/mouse-backend'
 
 export default function sortableContainer<P>(
@@ -52,22 +37,17 @@ export default function sortableContainer<P>(
 ) {
   return class WithSortableContainer extends React.Component<SortableContainerProps> implements BackendDelegate {
     manager = new Manager()
-    document!: Document
     container!: HTMLElement
     contentWindow!: Window
     scrollContainer!: HTMLElement
     autoScroller!: AutoScroller
-    touched = false
     helper!: HTMLElement
-    pressTimer?: number
-    cancelTimer?: number
     _awaitingUpdateBeforeSortStart?: boolean
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     translate?: { x: number; y: number }
     initialOffset?: { x: number; y: number }
     initialScroll?: { left: number; top: number }
     initialWindowScroll?: { left: number; top: number }
-    initialFocusedNode?: HTMLElement
     newIndex?: number
     helperWidth?: number
     helperHeight?: number
@@ -77,15 +57,14 @@ export default function sortableContainer<P>(
     offsetEdge?: { left: number; top: number }
     sortableGhost?: SortableNode
     prevIndex?: number
-    position?: { x: number; y: number }
-    listenerNode?: HTMLElement | Window
     minTranslate = { x: 0, y: 0 }
     maxTranslate = { x: 0, y: 0 }
+
+    backend!: Backend
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
 
-    backend!: MouseBackend
     get axis() {
       if (!this.props.axis) return { x: false, y: true }
       return {
@@ -96,78 +75,38 @@ export default function sortableContainer<P>(
 
     componentDidMount() {
       const { useWindowAsScrollContainer } = this.props
-      const container = this.getContainer()
+      this.container = this.getContainer()
 
-      Promise.resolve(container).then(containerNode => {
-        this.container = containerNode
-        this.document = this.container.ownerDocument || document
+      this.scrollContainer = useWindowAsScrollContainer
+        ? document.scrollingElement || document.documentElement
+        : getScrollingParent(this.container) || this.container
 
-        /*
-         *  Set our own default rather than using defaultProps because Jest
-         *  snapshots will serialize window, causing a RangeError
-         *  https://github.com/clauderic/react-ordering/issues/249
-         */
-        const contentWindow = this.props.contentWindow || this.document.defaultView || window
+      this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
 
-        this.contentWindow = typeof contentWindow === 'function' ? contentWindow() : contentWindow
-
-        this.scrollContainer = useWindowAsScrollContainer
-          ? this.document.scrollingElement || this.document.documentElement
-          : getScrollingParent(this.container) || this.container
-
-        this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
-
-        this.backend = new MouseBackend(this, this.container)
-        this.backend.attach()
-        // events.start.forEach(name => this.container.addEventListener(name, this.handleStartEvent as any, false))
-        // events.end.forEach(name => this.container.addEventListener(name, this.handleEndEvent as any, false))
-        // events.move.forEach(name => this.container.addEventListener(name, this.handleMoveEvent as any, false))
-
-        this.container.addEventListener('keydown', this.handleKeyDown as any)
-      })
+      this.backend = new MouseBackend(this, this.container)
+      this.backend.attach()
     }
 
     componentWillUnmount() {
-      if (this.helper && this.helper.parentNode) {
-        this.helper.parentNode.removeChild(this.helper)
-      }
-      if (!this.container) {
-        return
-      }
-
-      events.start.forEach(name => this.container.removeEventListener(name, this.handleStartEvent as any))
-      events.end.forEach(name => this.container.removeEventListener(name, this.handleEndEvent as any))
-      events.move.forEach(name => this.container.removeEventListener(name, this.handleMoveEvent as any))
-
-      this.container.removeEventListener('keydown', this.handleKeyDown as any)
+      this.helper?.parentNode?.removeChild(this.helper)
+      if (!this.container) return
+      this.backend.detach()
     }
 
     nodeIsChild = (node: SortableNode) => {
       return node.sortableInfo.manager === this.manager
     }
 
-    handleEndEvent = () => {
-      this.touched = false
-      this.cancel()
-    }
-
     cancel = () => {
-      const { distance } = this.props
-      const { sorting } = this.state
-
-      if (!sorting) {
-        if (!distance) {
-          clearTimeout(this.pressTimer)
-        }
-        this.manager.active = undefined
-      }
+      this.manager.active = undefined
     }
 
     async lift(position: { x: number; y: number }, element: HTMLElement) {
       const node = closest(element, isSortableNode)!
+      this.backend.lifted(node)
+
       const { index, collection } = node.sortableInfo
       this.manager.active = { collection, index }
-      console.log('lifted')
 
       const {
         getHelperDimensions,
@@ -208,16 +147,7 @@ export default function sortableContainer<P>(
       this.newIndex = index
 
       this.offsetEdge = getEdgeOffset(node, this.container)
-
-      if (isKeySorting) {
-        this.initialOffset = getPosition({
-          ...event,
-          pageX: boundingClientRect.left,
-          pageY: boundingClientRect.top
-        })
-      } else {
-        this.initialOffset = getPosition(event as SortMouseEvent | SortTouchEvent)
-      }
+      this.initialOffset = position
 
       this.initialScroll = {
         left: this.scrollContainer.scrollLeft,
@@ -266,8 +196,8 @@ export default function sortableContainer<P>(
           ? {
               top: 0,
               left: 0,
-              width: this.contentWindow.innerWidth,
-              height: this.contentWindow.innerHeight
+              width: window.innerWidth,
+              height: window.innerHeight
             }
           : this.containerBoundingRect
         const containerBottom = containerTop + containerHeight
@@ -290,7 +220,7 @@ export default function sortableContainer<P>(
             this.helperWidth! / 2
           this.maxTranslate.x =
             (useWindowAsScrollContainer
-              ? this.contentWindow.innerWidth
+              ? window.innerWidth
               : containerBoundingRect.left + containerBoundingRect.width) -
             boundingClientRect.left -
             this.helperWidth! / 2
@@ -303,7 +233,7 @@ export default function sortableContainer<P>(
             this.helperHeight! / 2
           this.maxTranslate.y =
             (useWindowAsScrollContainer
-              ? this.contentWindow.innerHeight
+              ? window.innerHeight
               : containerBoundingRect.top + containerBoundingRect.height) -
             boundingClientRect.top -
             this.helperHeight! / 2
@@ -316,17 +246,6 @@ export default function sortableContainer<P>(
 
       if (helperStyle) {
         setInlineStyles(this.helper, helperStyle)
-      }
-
-      this.listenerNode = isTouchEvent(event) ? node : this.contentWindow
-
-      if (isKeySorting) {
-        this.listenerNode.addEventListener('wheel', this.handleKeyEnd as any, true)
-        this.listenerNode.addEventListener('mousedown', this.handleKeyEnd as any, true)
-        this.listenerNode.addEventListener('keydown', this.handleKeyDown as any)
-      } else {
-        events.move.forEach(eventName => this.listenerNode!.addEventListener(eventName, this.move as any, false))
-        events.end.forEach(eventName => this.listenerNode!.addEventListener(eventName, this.drop as any, false))
       }
 
       this.setState({
@@ -347,24 +266,12 @@ export default function sortableContainer<P>(
           event
         )
       }
-
-      if (isKeySorting) {
-        // Readjust positioning in case re-rendering occurs onSortStart
-        this.keyMove(0)
-      }
     }
 
     move(position: { x: number; y: number }, motion: Motion) {
-      // const { onSortMove } = this.props
-
       this.updateHelperPosition(position, motion === Motion.Snap)
       this.animateNodes()
       this.autoscroll()
-
-      // FIXME
-      // if (onSortMove) {
-      //   onSortMove(event)
-      // }
     }
 
     async drop() {
@@ -374,18 +281,6 @@ export default function sortableContainer<P>(
         isKeySorting
       } = this.manager
       const nodes = this.manager.getOrderedRefs()
-
-      // Remove the event listeners if the node is still in the DOM
-      if (this.listenerNode) {
-        if (isKeySorting) {
-          this.listenerNode.removeEventListener('wheel', this.handleKeyEnd as any, true)
-          this.listenerNode.removeEventListener('mousedown', this.handleKeyEnd as any, true)
-          this.listenerNode.removeEventListener('keydown', this.handleKeyDown as any)
-        } else {
-          events.move.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.move as any))
-          events.end.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.drop as any))
-        }
-      }
 
       if (dropAnimationDuration && !isKeySorting) {
         await this.dropAnimation()
@@ -436,8 +331,6 @@ export default function sortableContainer<P>(
           nodes: nodes.map(r => r.node)
         })
       }
-
-      this.touched = false
     }
 
     updateHelperPosition(offset: { x: number; y: number }, ignoreTransition: boolean) {
@@ -757,137 +650,8 @@ export default function sortableContainer<P>(
       this.animateNodes()
     }
 
-    getWrappedInstance() {
-      invariant(
-        config.withRef,
-        'To access the wrapped instance, you need to pass in {withRef: true} as the second argument of the SortableContainer() call'
-      )
-
-      return this.refs.wrappedInstance
-    }
-
     getContainer() {
-      const { getContainer } = this.props
-
-      if (typeof getContainer !== 'function') {
-        return findDOMNode(this) as HTMLElement
-      }
-
-      return getContainer(config.withRef ? this.getWrappedInstance() : undefined)
-    }
-
-    handleKeyDown = (event: SortKeyboardEvent) => {
-      const { keyCode } = event
-      const { shouldCancelStart, keyCodes: customKeyCodes = {} } = this.props
-
-      const keyCodes = {
-        ...defaultKeyCodes,
-        ...customKeyCodes
-      }
-
-      if (
-        (this.manager.active && !this.manager.isKeySorting) ||
-        (!this.manager.active &&
-          (!keyCodes.lift.includes(keyCode) || shouldCancelStart!(event) || !this.isValidSortingTarget(event)))
-      ) {
-        return
-      }
-
-      event.stopPropagation()
-      event.preventDefault()
-
-      if (keyCodes.lift.includes(keyCode) && !this.manager.active) {
-        this.keyLift(event)
-      } else if (keyCodes.drop.includes(keyCode) && this.manager.active) {
-        this.keyDrop(event)
-      } else if (keyCodes.cancel.includes(keyCode)) {
-        this.newIndex = this.manager.active!.index
-        this.keyDrop(event)
-      } else if (keyCodes.up.includes(keyCode)) {
-        this.keyMove(-1)
-      } else if (keyCodes.down.includes(keyCode)) {
-        this.keyMove(1)
-      }
-    }
-
-    keyLift = (event: SortKeyboardEvent) => {
-      const { target } = event
-      const node = closest(target, isSortableNode)!
-      const { index, collection } = node.sortableInfo
-
-      this.initialFocusedNode = target
-
-      this.manager.isKeySorting = true
-      this.manager.active = {
-        index,
-        collection
-      }
-
-      this.lift(event)
-    }
-
-    keyMove = (shift: number) => {
-      const nodes = this.manager.getOrderedRefs()
-      const { index: lastIndex } = nodes[nodes.length - 1].node.sortableInfo
-      const newIndex = this.newIndex! + shift
-      const prevIndex = this.newIndex!
-
-      if (newIndex < 0 || newIndex > lastIndex) {
-        return
-      }
-
-      this.prevIndex = prevIndex
-      this.newIndex = newIndex
-
-      const targetIndex = getTargetIndex(this.newIndex, this.prevIndex, this.index)
-      const target = nodes.find(({ node }) => node.sortableInfo.index === targetIndex)!
-      const { node: targetNode } = target
-
-      const scrollDelta = this.containerScrollDelta
-      const targetBoundingClientRect =
-        target.boundingClientRect || getScrollAdjustedBoundingClientRect(targetNode, scrollDelta)
-      const targetTranslate = target.translate || { x: 0, y: 0 }
-
-      const targetPosition = {
-        top: targetBoundingClientRect.top + targetTranslate.y - scrollDelta.top,
-        left: targetBoundingClientRect.left + targetTranslate.x - scrollDelta.left
-      }
-
-      const shouldAdjustForSize = prevIndex < newIndex
-      const sizeAdjustment = {
-        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.helperWidth! : 0,
-        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helperHeight! : 0
-      }
-
-      this.move(
-        {
-          pageX: targetPosition.left + sizeAdjustment.x,
-          pageY: targetPosition.top + sizeAdjustment.y
-        },
-        shift === 0
-      )
-    }
-
-    keyDrop = (event: SortKeyboardEvent) => {
-      this.drop(event)
-
-      if (this.initialFocusedNode) {
-        this.initialFocusedNode.focus()
-      }
-    }
-
-    handleKeyEnd = (event: SortKeyboardEvent) => {
-      if (this.manager.active) {
-        this.keyDrop(event)
-      }
-    }
-
-    isValidSortingTarget = (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => {
-      const { useDragHandle } = this.props
-      const { target } = event
-      const node = closest(target, isSortableNode)
-
-      return node && !node.sortableInfo.disabled && (useDragHandle ? isSortableHandle(target) : isSortableNode(target))
+      return findDOMNode(this) as HTMLElement
     }
 
     render() {
@@ -907,7 +671,7 @@ export default function sortableContainer<P>(
         return helperContainer()
       }
 
-      return helperContainer || this.document.body
+      return helperContainer || document.body
     }
 
     get containerScrollDelta() {
@@ -925,8 +689,8 @@ export default function sortableContainer<P>(
 
     get windowScrollDelta() {
       return {
-        left: this.contentWindow.pageXOffset - this.initialWindowScroll!.left,
-        top: this.contentWindow.pageYOffset - this.initialWindowScroll!.top
+        left: window.pageXOffset - this.initialWindowScroll!.left,
+        top: window.pageYOffset - this.initialWindowScroll!.top
       }
     }
 
