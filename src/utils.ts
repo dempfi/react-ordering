@@ -30,12 +30,6 @@ export function omit(obj, keysToOmit) {
   }, {})
 }
 
-export const events = {
-  end: ['touchend', 'touchcancel', 'mouseup'] as ['touchend', 'touchcancel', 'mouseup'],
-  move: ['touchmove', 'mousemove'] as ['touchmove', 'mousemove'],
-  start: ['touchstart', 'mousedown'] as ['touchstart', 'mousedown']
-}
-
 export const vendorPrefix = (function () {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     // Server environment
@@ -78,16 +72,10 @@ export function setTransition(node, transition) {
   node.style[`${vendorPrefix}Transition`] = transition
 }
 
-export function closest<T>(el: HTMLElement, fn: (el: any) => el is T) {
-  while (el) {
-    if (fn(el)) {
-      return el
-    }
-
-    el = el.parentNode
-  }
-
-  return null
+export function closest<T>(el: HTMLElement, fn: (el: any) => el is T): T | undefined {
+  if (!el) return
+  if (fn(el)) return el
+  return closest<T>(el.parentNode as HTMLElement, fn)
 }
 
 export function limit(min: number, max: number, value: number) {
@@ -198,22 +186,12 @@ export function getLockPixelOffsets({ height, width, lockOffset }) {
   ]
 }
 
-function isScrollable(el) {
+export function isScrollable(el: HTMLElement): el is HTMLElement {
+  if ((el as any) === document) return false
   const computedStyle = window.getComputedStyle(el)
   const overflowRegex = /(auto|scroll)/
-  const properties = ['overflow', 'overflowX', 'overflowY']
-
-  return properties.find(property => overflowRegex.test(computedStyle[property]))
-}
-
-export function getScrollingParent(el) {
-  if (!(el instanceof HTMLElement)) {
-    return null
-  } else if (isScrollable(el)) {
-    return el
-  } else {
-    return getScrollingParent(el.parentNode)
-  }
+  const properties = ['overflow', 'overflowX', 'overflowY'] as ['overflow', 'overflowX', 'overflowY']
+  return !!properties.find(property => overflowRegex.test(computedStyle[property]))
 }
 
 export function getContainerGridGap(element: HTMLElement) {

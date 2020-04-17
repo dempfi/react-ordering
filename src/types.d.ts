@@ -94,14 +94,13 @@ export interface SortableContainerProps {
   pressDelay?: number
   pressThreshold?: number
   distance?: number
-  shouldCancelStart?: (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => boolean
+  shouldCancelStart?: (element: HTMLElement) => boolean
   updateBeforeSortStart?: SortStartHandler
   onSortStart?: SortStartHandler
   onSortMove?: SortMoveHandler
   onSortEnd?: SortEndHandler
   onSortOver?: SortOverHandler
   useDragHandle?: boolean
-  useWindowAsScrollContainer?: boolean
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
   lockOffset?: Offset | [Offset, Offset]

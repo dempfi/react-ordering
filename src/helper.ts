@@ -1,0 +1,285 @@
+import {
+  NodeType,
+  setTranslate3d,
+  setTransitionDuration,
+  limit,
+  getLockPixelOffsets,
+  setInlineStyles,
+  getElementMargin,
+  getContainerGridGap,
+  getEdgeOffset,
+  setTransition
+} from './utils'
+import { Motion } from './backend/backend'
+import { Offset } from './types'
+import { CSSProperties } from 'react'
+
+type Options = {
+  lockAxis?: 'x' | 'y'
+  axis?: 'x' | 'y' | 'xy'
+  position: { x: number; y: number }
+  lockToContainer?: boolean
+  motion: Motion
+  container: HTMLElement
+  scrollContainer: HTMLElement
+  lockOffset?: Offset | [Offset, Offset]
+  helperStyle?: CSSProperties
+  helperClass?: string
+}
+
+export class Helper {
+  private static clone(element: HTMLElement) {
+    const selector = 'input, textarea, select, canvas, [contenteditable]'
+    const fields = element.querySelectorAll<HTMLInputElement>(selector)
+    const clone = element.cloneNode(true) as HTMLElement
+    const clonedFields = [...clone.querySelectorAll<HTMLInputElement>(selector)]
+
+    clonedFields.forEach((field, i) => {
+      if (field.type !== 'file') {
+        field.value = fields[i].value
+      }
+
+      // Fixes an issue with original radio buttons losing their value once the
+      // clone is inserted in the DOM, as radio button `name` attributes must be unique
+      if (field.type === 'radio' && field.name) {
+        field.name = `__sortableClone__${field.name}`
+      }
+
+      if (field.tagName === NodeType.Canvas && fields[i].width > 0 && fields[i].height > 0) {
+        const destCtx = (field as any).getContext('2d')
+        destCtx.drawImage(fields[i], 0, 0)
+      }
+    })
+
+    return clone
+  }
+
+  width: number
+  height: number
+  translate!: { x: number; y: number }
+  minTranslate: { x: number; y: number }
+  maxTranslate: { x: number; y: number }
+  private dropAnimation = {
+    duration: 250,
+    easing: 'cubic-bezier(.2,1,.1,1)'
+  }
+  private axis: { x: boolean; y: boolean }
+  private initialPosition: { x: number; y: number }
+  private element: HTMLElement
+  private initialWindowScroll: { left: number; top: number }
+  private motion: Motion
+  private lockAxis?: 'x' | 'y'
+  private lockToContainer: boolean
+  private container: HTMLElement
+  private scrollContainer: HTMLElement
+
+  private get containerScrollDelta() {
+    return {
+      left: this.scrollContainer.scrollLeft - this.initialScroll!.left,
+      top: this.scrollContainer.scrollTop - this.initialScroll!.top
+    }
+  }
+
+  private get windowScrollDelta() {
+    return {
+      left: window.pageXOffset - this.initialWindowScroll!.left,
+      top: window.pageYOffset - this.initialWindowScroll!.top
+    }
+  }
+
+  marginOffset: { x: number; y: number }
+  containerBoundingRect: DOMRect
+  initialScroll: { left: number; top: number }
+  lockOffset: string | number | [Offset, Offset]
+  offsetEdge: { left: number; top: number }
+
+  constructor(element: HTMLElement, options: Options) {
+    this.element = Helper.clone(element)
+    this.initialPosition = options.position
+    this.motion = options.motion
+    this.lockAxis = options.lockAxis
+    this.lockToContainer = options.lockToContainer ?? false
+    this.container = options.container
+    this.scrollContainer = options.scrollContainer
+    this.lockOffset = options.lockOffset ?? '50%'
+    this.axis = options.axis
+      ? {
+          x: options.axis.indexOf('x') >= 0,
+          y: options.axis.indexOf('y') >= 0
+        }
+      : { x: false, y: true }
+
+    this.initialWindowScroll = {
+      left: window.pageXOffset,
+      top: window.pageYOffset
+    }
+
+    // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
+    const margin = getElementMargin(element)
+    const gridGap = getContainerGridGap(this.container)
+    const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
+
+    this.width = element.offsetWidth
+    this.height = element.offsetHeight
+
+    this.marginOffset = {
+      x: margin.left + margin.right + gridGap.x,
+      y: Math.max(margin.top, margin.bottom, gridGap.y)
+    }
+
+    const boundingClientRect = element.getBoundingClientRect()
+
+    this.containerBoundingRect = containerBoundingRect
+    this.offsetEdge = getEdgeOffset(element, this.container)
+
+    this.initialScroll = {
+      left: this.scrollContainer.scrollLeft,
+      top: this.scrollContainer.scrollTop
+    }
+
+    // this.element = this.elementContainer.appendChild(cloneNode(node))
+
+    setInlineStyles(this.element, {
+      boxSizing: 'border-box',
+      height: `${this.height}px`,
+      left: `${boundingClientRect.left - margin.left}px`,
+      pointerEvents: 'none',
+      position: 'fixed',
+      top: `${boundingClientRect.top - margin.top}px`,
+      width: `${this.width}px`
+    })
+
+    if (this.motion === Motion.Snap) {
+      this.element.focus()
+    }
+
+    this.minTranslate = { x: 0, y: 0 }
+    this.maxTranslate = { x: 0, y: 0 }
+
+    if (this.motion === Motion.Snap) {
+      const {
+        top: containerTop,
+        left: containerLeft,
+        width: containerWidth,
+        height: containerHeight
+      } = this.containerBoundingRect
+      const containerBottom = containerTop + containerHeight
+      const containerRight = containerLeft + containerWidth
+
+      if (this.axis.x) {
+        this.minTranslate.x = containerLeft - boundingClientRect.left
+        this.maxTranslate.x = containerRight - (boundingClientRect.left + this.width)
+      }
+
+      if (this.axis.y) {
+        this.minTranslate.y = containerTop - boundingClientRect.top
+        this.maxTranslate.y = containerBottom - (boundingClientRect.top + this.height)
+      }
+    } else {
+      if (this.axis.x) {
+        this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left - this.width! / 2
+        this.maxTranslate.x =
+          containerBoundingRect.left + containerBoundingRect.width - boundingClientRect.left - this.width! / 2
+      }
+
+      if (this.axis.y) {
+        this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top - this.height! / 2
+        this.maxTranslate.y =
+          containerBoundingRect.top + containerBoundingRect.height - boundingClientRect.top - this.height! / 2
+      }
+    }
+
+    if (options.helperClass) {
+      options.helperClass.split(' ').forEach(className => this.element.classList.add(className))
+    }
+
+    if (options.helperStyle) {
+      setInlineStyles(this.element, options.helperStyle)
+    }
+  }
+
+  attach(container: HTMLElement) {
+    container.append(this.element)
+  }
+
+  detach() {
+    this.element.parentElement?.removeChild(this.element)
+  }
+
+  move(offset: { x: number; y: number }) {
+    const translate = {
+      x: offset.x - this.initialPosition!.x,
+      y: offset.y - this.initialPosition!.y
+    }
+
+    // Adjust for window scroll
+    translate.y -= window.pageYOffset - this.initialWindowScroll!.top
+    translate.x -= window.pageXOffset - this.initialWindowScroll!.left
+
+    this.translate = translate
+
+    if (this.lockToContainer) {
+      const [minLockOffset, maxLockOffset] = getLockPixelOffsets({
+        height: this.height,
+        lockOffset: this.lockOffset,
+        width: this.width
+      })
+      const minOffset = {
+        x: this.width! / 2 - minLockOffset.x,
+        y: this.height! / 2 - minLockOffset.y
+      }
+      const maxOffset = {
+        x: this.width! / 2 - maxLockOffset.x,
+        y: this.height! / 2 - maxLockOffset.y
+      }
+
+      translate.x = limit(this.minTranslate!.x + minOffset.x, this.maxTranslate!.x - maxOffset.x, translate.x)
+      translate.y = limit(this.minTranslate!.y + minOffset.y, this.maxTranslate!.y - maxOffset.y, translate.y)
+    }
+
+    if (this.lockAxis === 'x') {
+      translate.y = 0
+    } else if (this.lockAxis === 'y') {
+      translate.x = 0
+    }
+
+    // if (isKeySorting && keyboardSortingTransitionDuration && !ignoreTransition) {
+    //   setTransitionDuration(this.element, keyboardSortingTransitionDuration)
+    // }
+
+    setTranslate3d(this.element, translate)
+  }
+
+  drop(
+    newOffset: { left: number; top: number },
+    offsetWidth: number,
+    offsetHeight: number,
+    direction: 'forward' | 'backward'
+  ) {
+    const oldOffset = this.offsetEdge
+
+    const deltaX =
+      direction === 'forward'
+        ? newOffset.left - this.width! + offsetWidth - oldOffset.left
+        : newOffset.left - oldOffset.left
+    const deltaY =
+      direction === 'forward'
+        ? newOffset.top - this.height! + offsetHeight - oldOffset.top
+        : newOffset.top - oldOffset.top
+
+    setTranslate3d(this.element, {
+      x: deltaX - this.containerScrollDelta.left - this.windowScrollDelta.left,
+      y: deltaY - this.containerScrollDelta.top - this.windowScrollDelta.top
+    })
+    setTransition(this.element, `transform ${this.dropAnimation.duration}ms ${this.dropAnimation.easing}`)
+
+    return new Promise(resolve => {
+      this.element.addEventListener('transitionend', event => {
+        // We only want to know when the transform transition ends, there
+        // could be other animated properties, such as opacity
+        if (event.propertyName !== 'transform') return
+        resolve()
+      })
+    })
+  }
+}

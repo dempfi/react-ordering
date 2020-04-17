@@ -25,10 +25,10 @@ export abstract class Backend {
     if (this.delegate.moveDelay) return
 
     if (!this.delegate.pressDelay || this.delegate.pressDelay.time === 0) {
-      this.delegate.lift(position, element)
+      this.delegate.lift(element, position, Motion.Fluid)
     } else {
       this.pressDelayTimer = window.setTimeout(() => {
-        this.delegate.lift(position, element)
+        this.delegate.lift(element, position, Motion.Fluid)
       }, this.delegate.pressDelay?.time)
     }
   }
@@ -48,7 +48,7 @@ export abstract class Backend {
       clearTimeout(this.cancelTimer)
       this.cancelTimer = window.setTimeout(this.cancel, 0)
     } else if (this.delegate.moveDelay && combinedDelta >= this.delegate.moveDelay) {
-      this.delegate.lift(position, element)
+      this.delegate.lift(element, position, Motion.Fluid)
     }
   }
 
