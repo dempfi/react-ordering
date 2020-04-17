@@ -5,13 +5,10 @@ import { isSortableHandle } from '../handle'
 import { Manager, ManagerContext } from '../manager'
 
 import {
-  cloneNode,
   closest,
   getContainerGridGap,
   getEdgeOffset,
   getElementMargin,
-  getLockPixelOffsets,
-  limit,
   omit,
   provideDisplayName,
   setInlineStyles,
@@ -19,7 +16,8 @@ import {
   setTransitionDuration,
   setTranslate3d,
   getScrollAdjustedBoundingClientRect,
-  isScrollable
+  isScrollable,
+  getTargetIndex
 } from '../utils'
 
 import { AutoScroller } from '../auto-scroller'
@@ -31,6 +29,8 @@ import { BackendDelegate } from '../backend/backend-delegate'
 import { Motion, Backend } from '../backend/backend'
 import { MouseBackend } from '../backend/mouse-backend'
 import { Helper } from '../helper'
+import { TouchBackend } from '../backend/touch-backend'
+import { KeyboardBackend } from '../backend/keyboard-backend'
 
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
@@ -52,8 +52,9 @@ export default function sortableContainer<P>(
     offsetEdge?: { left: number; top: number }
     sortableGhost?: SortableNode
     prevIndex?: number
-    backend!: Backend
+    backends: Backend[] = []
     helper!: Helper
+    currentMotion?: Motion
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
@@ -66,19 +67,28 @@ export default function sortableContainer<P>(
       }
     }
 
+    get isSnapMotion() {
+      return this.currentMotion === Motion.Snap
+    }
+
     componentDidMount() {
       this.container = this.getContainer()
       this.scrollContainer = closest(this.container, isScrollable) || this.container
-      this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
+      this.autoScroller = new AutoScroller(this.scrollContainer, this.animateNodes)
 
-      this.backend = new MouseBackend(this, this.container)
-      this.backend.attach()
+      this.backends = [
+        new MouseBackend(this, this.container),
+        new TouchBackend(this, this.container),
+        new KeyboardBackend(this, this.container)
+      ]
+      this.backends.forEach(b => b.attach())
     }
 
     componentWillUnmount() {
       this.helper?.detach()
       if (!this.container) return
-      this.backend.detach()
+      this.backends.forEach(b => b.detach())
+      this.backends = []
     }
 
     nodeIsChild = (node: SortableNode) => {
@@ -86,24 +96,28 @@ export default function sortableContainer<P>(
     }
 
     cancel = () => {
+      if (this.isSnapMotion) {
+        this.snap(this.index! - this.newIndex!)
+        this.drop()
+      }
       this.manager.active = undefined
     }
 
     async lift(element: HTMLElement, position: { x: number; y: number }, motion: Motion) {
       const node = closest(element, isSortableNode)!
-      this.backend.lifted(node)
+      this.backends.forEach(b => b.lifted(node))
 
       const { index, collection } = node.sortableInfo
       this.manager.active = { collection, index }
+      this.currentMotion = motion
 
       const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
-      const { isKeySorting } = this.manager
 
       if (typeof updateBeforeSortStart === 'function') {
         this._awaitingUpdateBeforeSortStart = true
 
         try {
-          await updateBeforeSortStart({ collection, index, node, isKeySorting }, event)
+          await updateBeforeSortStart({ collection, index, node }, event)
         } finally {
           this._awaitingUpdateBeforeSortStart = false
         }
@@ -121,7 +135,7 @@ export default function sortableContainer<P>(
         helperClass: this.props.helperClass,
         helperStyle: this.props.helperStyle
       })
-      this.helper?.attach(this.helperContainer)
+      this.helper.attach(this.helperContainer)
 
       // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
       const margin = getElementMargin(node)
@@ -166,9 +180,7 @@ export default function sortableContainer<P>(
             node,
             index,
             collection,
-            isKeySorting,
             nodes: this.manager.getOrderedRefs().map(r => r.node)
-            // helper: this.helper3
           },
           event
         )
@@ -176,25 +188,67 @@ export default function sortableContainer<P>(
     }
 
     move(position: { x: number; y: number }) {
-      this.helper?.move(position)
+      this.helper.move(position)
       this.animateNodes()
       this.autoscroll()
+    }
+
+    snap(shift: number) {
+      const nodes = this.manager.getOrderedRefs()
+      const { index: lastIndex } = nodes[nodes.length - 1].node.sortableInfo
+      const newIndex = this.newIndex! + shift
+      const prevIndex = this.newIndex!
+
+      if (newIndex < 0 || newIndex > lastIndex) {
+        return
+      }
+
+      this.prevIndex = prevIndex
+      this.newIndex = newIndex
+
+      const targetIndex = getTargetIndex(this.newIndex, this.prevIndex, this.index)
+      const target = nodes.find(({ node }) => node.sortableInfo.index === targetIndex)!
+      const { node: targetNode } = target
+
+      const scrollDelta = this.containerScrollDelta
+      const targetBoundingClientRect =
+        target.boundingClientRect || getScrollAdjustedBoundingClientRect(targetNode, scrollDelta)
+      const targetTranslate = target.translate || { x: 0, y: 0 }
+
+      const targetPosition = {
+        top: targetBoundingClientRect.top + targetTranslate.y - scrollDelta.top,
+        left: targetBoundingClientRect.left + targetTranslate.x - scrollDelta.left
+      }
+
+      const shouldAdjustForSize = prevIndex < newIndex
+      const sizeAdjustment = {
+        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.helper.width : 0,
+        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helper.height : 0
+      }
+
+      this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
     }
 
     async drop() {
       const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
       const {
-        active: { collection },
-        isKeySorting
+        active: { collection }
       } = this.manager
       const nodes = this.manager.getOrderedRefs()
 
-      if (dropAnimationDuration && !isKeySorting) {
-        await this.dropAnimation()
+      if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
+        const { edgeOffset, node: newNode } = this.manager.nodeAtIndex(this.newIndex)!
+        const newOffset = edgeOffset || getEdgeOffset(newNode, this.container)
+        await this.helper.drop(
+          newOffset,
+          newNode.offsetWidth,
+          newNode.offsetHeight,
+          this.newIndex! > this.index! ? 'forward' : 'backward'
+        )
       }
 
       // Remove the helper from the DOM
-      this.helper?.detach()
+      this.helper.detach()
 
       if (hideSortableGhost && this.sortableGhost) {
         setInlineStyles(this.sortableGhost, {
@@ -222,7 +276,6 @@ export default function sortableContainer<P>(
 
       // Update manager state
       this.manager.active = undefined
-      this.manager.isKeySorting = false
 
       this.setState({
         sorting: false,
@@ -234,7 +287,6 @@ export default function sortableContainer<P>(
           collection,
           newIndex: this.newIndex!,
           oldIndex: this.index!,
-          isKeySorting,
           nodes: nodes.map(r => r.node)
         })
       }
@@ -245,10 +297,9 @@ export default function sortableContainer<P>(
       const { containerScrollDelta, windowScrollDelta } = this
       const nodes = this.manager.getOrderedRefs()
       const sortingOffset = {
-        left: this.offsetEdge!.left + this.helper?.translate!.x + containerScrollDelta.left,
-        top: this.offsetEdge!.top + this.helper?.translate!.y + containerScrollDelta.top
+        left: this.offsetEdge!.left + this.helper.translate.x + containerScrollDelta.left,
+        top: this.offsetEdge!.top + this.helper.translate.y + containerScrollDelta.top
       }
-      const { isKeySorting } = this.manager
 
       const prevIndex = this.newIndex!
       this.newIndex = undefined
@@ -259,13 +310,13 @@ export default function sortableContainer<P>(
         const width = node.offsetWidth
         const height = node.offsetHeight
         const offset = {
-          height: this.helper?.height! > height ? height / 2 : this.helper?.height! / 2,
-          width: this.helper?.width! > width ? width / 2 : this.helper?.width! / 2
+          height: this.helper.height > height ? height / 2 : this.helper.height / 2,
+          width: this.helper.width > width ? width / 2 : this.helper.width / 2
         }
 
         // For keyboard sorting, we want user input to dictate the position of the nodes
-        const mustShiftBackward = isKeySorting && index > this.index! && index <= prevIndex
-        const mustShiftForward = isKeySorting && index < this.index! && index >= prevIndex
+        const mustShiftBackward = this.isSnapMotion && index > this.index! && index <= prevIndex
+        const mustShiftForward = this.isSnapMotion && index < this.index! && index >= prevIndex
 
         const translate = { x: 0, y: 0 }
         let { edgeOffset } = nodes[i]
@@ -275,7 +326,7 @@ export default function sortableContainer<P>(
           edgeOffset = getEdgeOffset(node, this.container)
           nodes[i].edgeOffset = edgeOffset
           // While we're at it, cache the boundingClientRect, used during keyboard sorting
-          if (isKeySorting) {
+          if (this.isSnapMotion) {
             nodes[i].boundingClientRect = getScrollAdjustedBoundingClientRect(node, containerScrollDelta)
           }
         }
@@ -288,7 +339,7 @@ export default function sortableContainer<P>(
         // We need this for calculating the animation in a grid setup
         if (nextNode && !nextNode.edgeOffset) {
           nextNode.edgeOffset = getEdgeOffset(nextNode.node, this.container)
-          if (isKeySorting) {
+          if (this.isSnapMotion) {
             nextNode.boundingClientRect = getScrollAdjustedBoundingClientRect(nextNode.node, containerScrollDelta)
           }
         }
@@ -323,7 +374,7 @@ export default function sortableContainer<P>(
             ) {
               // If the current node is to the left on the same row, or above the node that's being dragged
               // then move it to the right
-              translate.x = this.helper.width! + this.marginOffset!.x
+              translate.x = this.helper.width + this.marginOffset!.x
               if (edgeOffset.left + translate.x > this.containerBoundingRect!.width - offset.width) {
                 // If it moves passed the right bounds, then animate it to the first position of the next row.
                 // We just use the offset of the next node to calculate where to move, because that node's original position
@@ -345,7 +396,7 @@ export default function sortableContainer<P>(
             ) {
               // If the current node is to the right on the same row, or below the node that's being dragged
               // then move it to the left
-              translate.x = -(this.helper.width! + this.marginOffset!.x)
+              translate.x = -(this.helper.width + this.marginOffset!.x)
               if (edgeOffset.left + translate.x < this.containerBoundingRect!.left + offset.width) {
                 // If it moves passed the left bounds, then animate it to the last position of the previous row.
                 // We just use the offset of the previous node to calculate where to move, because that node's original position
@@ -362,31 +413,31 @@ export default function sortableContainer<P>(
               mustShiftBackward ||
               (index > this.index! && sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left)
             ) {
-              translate.x = -(this.helper.width! + this.marginOffset!.x)
+              translate.x = -(this.helper.width + this.marginOffset!.x)
               this.newIndex = index
             } else if (
               mustShiftForward ||
               (index < this.index! && sortingOffset.left + windowScrollDelta.left <= edgeOffset.left + offset.width)
             ) {
-              translate.x = this.helper.width! + this.marginOffset!.x
+              translate.x = this.helper.width + this.marginOffset!.x
 
               if (this.newIndex == undefined) {
                 this.newIndex = index
               }
             }
           }
-        } else if (this.axis!.y) {
+        } else if (this.axis.y) {
           if (
             mustShiftBackward ||
             (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
           ) {
-            translate.y = -(this.helper.height! + this.marginOffset!.y)
+            translate.y = -(this.helper.height + this.marginOffset!.y)
             this.newIndex = index
           } else if (
             mustShiftForward ||
             (index < this.index! && sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height)
           ) {
-            translate.y = this.helper.height! + this.marginOffset!.y
+            translate.y = this.helper.height + this.marginOffset!.y
             if (this.newIndex == undefined) {
               this.newIndex = index
             }
@@ -401,68 +452,54 @@ export default function sortableContainer<P>(
         this.newIndex = this.index
       }
 
-      if (isKeySorting) {
+      if (this.isSnapMotion) {
         // If keyboard sorting, we want the user input to dictate index, not location of the helper
         this.newIndex = prevIndex
       }
 
-      const oldIndex = isKeySorting ? this.prevIndex : prevIndex
+      const oldIndex = this.isSnapMotion ? this.prevIndex : prevIndex
       if (onSortOver && this.newIndex !== oldIndex) {
         onSortOver({
           collection: this.manager.active!.collection,
           index: this.index!,
           newIndex: this.newIndex!,
           oldIndex: oldIndex!,
-          isKeySorting,
-          nodes: nodes.map(r => r.node),
-          helper: this.helper3
+          nodes: nodes.map(r => r.node)
         })
       }
     }
 
-    dropAnimation() {
-      const { edgeOffset, node: newNode } = this.manager.nodeAtIndex(this.newIndex)!
-      const newOffset = edgeOffset || getEdgeOffset(newNode, this.container)
-      return this.helper?.drop(
-        newOffset,
-        newNode.offsetWidth,
-        newNode.offsetHeight,
-        this.newIndex! > this.index! ? 'forward' : 'backward'
-      )
-    }
-
     autoscroll = () => {
       const { disableAutoscroll } = this.props
-      const { isKeySorting } = this.manager
 
       if (disableAutoscroll) {
         this.autoScroller.clear()
         return
       }
 
-      if (isKeySorting) {
-        const translate = { ...this.helper?.translate! }
+      if (this.isSnapMotion) {
+        const translate = { ...this.helper.translate }
         let scrollX = 0
         let scrollY = 0
 
-        if (this.axis!.x) {
+        if (this.axis.x) {
           translate.x = Math.min(
             this.helper.maxTranslate.x,
-            Math.max(this.helper.minTranslate.x, this.helper?.translate!.x)
+            Math.max(this.helper.minTranslate.x, this.helper.translate.x)
           )
-          scrollX = this.helper?.translate!.x - translate.x
+          scrollX = this.helper.translate.x - translate.x
         }
 
-        if (this.axis!.y) {
+        if (this.axis.y) {
           translate.y = Math.min(
             this.helper.maxTranslate.y,
-            Math.max(this.helper.minTranslate.y, this.helper?.translate!.y)
+            Math.max(this.helper.minTranslate.y, this.helper.translate.y)
           )
-          scrollY = this.helper.translate!.y - translate.y
+          scrollY = this.helper.translate.y - translate.y
         }
 
-        this.helper!.translate = translate
-        setTranslate3d(this.helper.element, this.helper!.translate)
+        this.helper.translate = translate
+        setTranslate3d(this.helper.element, this.helper.translate)
         this.scrollContainer.scrollLeft += scrollX
         this.scrollContainer.scrollTop += scrollY
 
@@ -473,16 +510,9 @@ export default function sortableContainer<P>(
         height: this.helper.height,
         maxTranslate: this.helper.maxTranslate,
         minTranslate: this.helper.minTranslate,
-        translate: this.helper!.translate,
+        translate: this.helper.translate,
         width: this.helper.width
       })
-    }
-
-    onAutoScroll = (offset: { left: number; top: number }) => {
-      this.helper!.translate!.x += offset.left
-      this.helper!.translate!.y += offset.top
-
-      this.animateNodes()
     }
 
     getContainer() {

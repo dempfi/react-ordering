@@ -87,7 +87,6 @@ export class Helper {
     }
   }
 
-  marginOffset: { x: number; y: number }
   containerBoundingRect: DOMRect
   initialScroll: { left: number; top: number }
   lockOffset: string | number | [Offset, Offset]
@@ -116,16 +115,10 @@ export class Helper {
 
     // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
     const margin = getElementMargin(element)
-    const gridGap = getContainerGridGap(this.container)
     const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
 
     this.width = element.offsetWidth
     this.height = element.offsetHeight
-
-    this.marginOffset = {
-      x: margin.left + margin.right + gridGap.x,
-      y: Math.max(margin.top, margin.bottom, gridGap.y)
-    }
 
     const boundingClientRect = element.getBoundingClientRect()
 
@@ -136,8 +129,6 @@ export class Helper {
       left: this.scrollContainer.scrollLeft,
       top: this.scrollContainer.scrollTop
     }
-
-    // this.element = this.elementContainer.appendChild(cloneNode(node))
 
     setInlineStyles(this.element, {
       boxSizing: 'border-box',
@@ -177,15 +168,15 @@ export class Helper {
       }
     } else {
       if (this.axis.x) {
-        this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left - this.width! / 2
+        this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left - this.width / 2
         this.maxTranslate.x =
-          containerBoundingRect.left + containerBoundingRect.width - boundingClientRect.left - this.width! / 2
+          containerBoundingRect.left + containerBoundingRect.width - boundingClientRect.left - this.width / 2
       }
 
       if (this.axis.y) {
-        this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top - this.height! / 2
+        this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top - this.height / 2
         this.maxTranslate.y =
-          containerBoundingRect.top + containerBoundingRect.height - boundingClientRect.top - this.height! / 2
+          containerBoundingRect.top + containerBoundingRect.height - boundingClientRect.top - this.height / 2
       }
     }
 
@@ -208,13 +199,13 @@ export class Helper {
 
   move(offset: { x: number; y: number }) {
     const translate = {
-      x: offset.x - this.initialPosition!.x,
-      y: offset.y - this.initialPosition!.y
+      x: offset.x - this.initialPosition.x,
+      y: offset.y - this.initialPosition.y
     }
 
     // Adjust for window scroll
-    translate.y -= window.pageYOffset - this.initialWindowScroll!.top
-    translate.x -= window.pageXOffset - this.initialWindowScroll!.left
+    translate.y -= window.pageYOffset - this.initialWindowScroll.top
+    translate.x -= window.pageXOffset - this.initialWindowScroll.left
 
     this.translate = translate
 
@@ -225,16 +216,16 @@ export class Helper {
         width: this.width
       })
       const minOffset = {
-        x: this.width! / 2 - minLockOffset.x,
-        y: this.height! / 2 - minLockOffset.y
+        x: this.width / 2 - minLockOffset.x,
+        y: this.height / 2 - minLockOffset.y
       }
       const maxOffset = {
-        x: this.width! / 2 - maxLockOffset.x,
-        y: this.height! / 2 - maxLockOffset.y
+        x: this.width / 2 - maxLockOffset.x,
+        y: this.height / 2 - maxLockOffset.y
       }
 
-      translate.x = limit(this.minTranslate!.x + minOffset.x, this.maxTranslate!.x - maxOffset.x, translate.x)
-      translate.y = limit(this.minTranslate!.y + minOffset.y, this.maxTranslate!.y - maxOffset.y, translate.y)
+      translate.x = limit(this.minTranslate.x + minOffset.x, this.maxTranslate.x - maxOffset.x, translate.x)
+      translate.y = limit(this.minTranslate.y + minOffset.y, this.maxTranslate.y - maxOffset.y, translate.y)
     }
 
     if (this.lockAxis === 'x') {
@@ -260,11 +251,11 @@ export class Helper {
 
     const deltaX =
       direction === 'forward'
-        ? newOffset.left - this.width! + offsetWidth - oldOffset.left
+        ? newOffset.left - this.width + offsetWidth - oldOffset.left
         : newOffset.left - oldOffset.left
     const deltaY =
       direction === 'forward'
-        ? newOffset.top - this.height! + offsetHeight - oldOffset.top
+        ? newOffset.top - this.height + offsetHeight - oldOffset.top
         : newOffset.top - oldOffset.top
 
     setTranslate3d(this.element, {

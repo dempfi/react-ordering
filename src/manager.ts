@@ -10,7 +10,6 @@ type Ref = {
 
 export class Manager {
   refs: Record<CollectionKey, Ref[]> = {}
-  isKeySorting: boolean = false
   private _active?: { collection: CollectionKey; index: number }
 
   get active() {

@@ -227,28 +227,12 @@ export const NodeType = {
   Select: 'SELECT'
 }
 
-export function cloneNode(node: HTMLElement): HTMLElement {
-  const selector = 'input, textarea, select, canvas, [contenteditable]'
-  const fields = node.querySelectorAll<HTMLInputElement>(selector)
-  const clonedNode = node.cloneNode(true) as HTMLElement
-  const clonedFields = [...clonedNode.querySelectorAll<HTMLInputElement>(selector)]
-
-  clonedFields.forEach((field, i) => {
-    if (field.type !== 'file') {
-      field.value = fields[i].value
-    }
-
-    // Fixes an issue with original radio buttons losing their value once the
-    // clone is inserted in the DOM, as radio button `name` attributes must be unique
-    if (field.type === 'radio' && field.name) {
-      field.name = `__sortableClone__${field.name}`
-    }
-
-    if (field.tagName === NodeType.Canvas && fields[i].width > 0 && fields[i].height > 0) {
-      const destCtx = field.getContext('2d')
-      destCtx.drawImage(fields[i], 0, 0)
-    }
-  })
-
-  return clonedNode
+export function getTargetIndex(newIndex, prevIndex, oldIndex) {
+  if (newIndex < oldIndex && newIndex > prevIndex) {
+    return newIndex - 1
+  } else if (newIndex > oldIndex && newIndex < prevIndex) {
+    return newIndex + 1
+  } else {
+    return newIndex
+  }
 }

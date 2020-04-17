@@ -9,10 +9,9 @@ export abstract class Backend {
   private positionAtStart?: { x: number; y: number }
   private pressDelayTimer?: number
   private cancelTimer?: number
+  protected abstract motion: Motion
 
   constructor(protected delegate: BackendDelegate, protected container: HTMLElement) {}
-
-  abstract motion: Motion
 
   abstract attach(): void
 
@@ -25,10 +24,10 @@ export abstract class Backend {
     if (this.delegate.moveDelay) return
 
     if (!this.delegate.pressDelay || this.delegate.pressDelay.time === 0) {
-      this.delegate.lift(element, position, Motion.Fluid)
+      this.delegate.lift(element, position, this.motion)
     } else {
       this.pressDelayTimer = window.setTimeout(() => {
-        this.delegate.lift(element, position, Motion.Fluid)
+        this.delegate.lift(element, position, this.motion)
       }, this.delegate.pressDelay?.time)
     }
   }
@@ -39,7 +38,7 @@ export abstract class Backend {
     const x = this.positionAtStart!.x - position.x
     const y = this.positionAtStart!.y - position.y
 
-    const combinedDelta = Math.abs(x) + Math.abs(y)
+    const combinedDelta = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2))
 
     if (
       !this.delegate.moveDelay &&
@@ -48,7 +47,7 @@ export abstract class Backend {
       clearTimeout(this.cancelTimer)
       this.cancelTimer = window.setTimeout(this.cancel, 0)
     } else if (this.delegate.moveDelay && combinedDelta >= this.delegate.moveDelay) {
-      this.delegate.lift(element, position, Motion.Fluid)
+      this.delegate.lift(element, position, this.motion)
     }
   }
 

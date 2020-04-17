@@ -50,7 +50,7 @@ export class MouseBackend extends Backend {
 
   private handleMouseMove = (event: MouseEvent) => {
     if (!this.delegate.isSorting) return
-    this.delegate.move({ x: event.pageX, y: event.pageY }, this.motion)
+    this.delegate.move({ x: event.pageX, y: event.pageY })
   }
 
   private handleMouseUp = () => {

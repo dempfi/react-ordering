@@ -10,7 +10,8 @@ export interface BackendDelegate {
   readonly isSorting: boolean
   canLift(element: HTMLElement): boolean
   lift(element: HTMLElement, position: { x: number; y: number }, motion: Motion): void
-  move(position: { x: number; y: number }, motion: Motion): void
+  move(position: { x: number; y: number }): void
+  snap(by: number): void
   drop(): void
   cancel(): void
 }
