@@ -16,7 +16,6 @@ export const orderingProps = [
   'helperContainer',
   'hideSortableGhost',
   'keyboardSortingTransitionDuration',
-  'lockAxis',
   'lockOffset',
   'lockToContainerEdges',
   'onSortEnd',

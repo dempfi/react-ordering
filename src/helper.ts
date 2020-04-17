@@ -15,7 +15,6 @@ import { Offset } from './types'
 import { CSSProperties } from 'react'
 
 type Options = {
-  lockAxis?: 'x' | 'y'
   axis?: 'x' | 'y' | 'xy'
   position: { x: number; y: number }
   lockToContainer?: boolean
@@ -68,7 +67,6 @@ export class Helper {
   private element: HTMLElement
   private initialWindowScroll: { left: number; top: number }
   private motion: Motion
-  private lockAxis?: 'x' | 'y'
   private lockToContainer: boolean
   private container: HTMLElement
   private scrollContainer: HTMLElement
@@ -96,7 +94,6 @@ export class Helper {
     this.element = Helper.clone(element)
     this.initialPosition = options.position
     this.motion = options.motion
-    this.lockAxis = options.lockAxis
     this.lockToContainer = options.lockToContainer ?? false
     this.container = options.container
     this.scrollContainer = options.scrollContainer
@@ -147,37 +144,14 @@ export class Helper {
     this.minTranslate = { x: 0, y: 0 }
     this.maxTranslate = { x: 0, y: 0 }
 
-    if (this.motion === Motion.Snap) {
-      const {
-        top: containerTop,
-        left: containerLeft,
-        width: containerWidth,
-        height: containerHeight
-      } = this.containerBoundingRect
-      const containerBottom = containerTop + containerHeight
-      const containerRight = containerLeft + containerWidth
+    if (this.axis.x) {
+      this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left
+      this.maxTranslate.x = containerBoundingRect.right - (boundingClientRect.left + this.width)
+    }
 
-      if (this.axis.x) {
-        this.minTranslate.x = containerLeft - boundingClientRect.left
-        this.maxTranslate.x = containerRight - (boundingClientRect.left + this.width)
-      }
-
-      if (this.axis.y) {
-        this.minTranslate.y = containerTop - boundingClientRect.top
-        this.maxTranslate.y = containerBottom - (boundingClientRect.top + this.height)
-      }
-    } else {
-      if (this.axis.x) {
-        this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left - this.width / 2
-        this.maxTranslate.x =
-          containerBoundingRect.left + containerBoundingRect.width - boundingClientRect.left - this.width / 2
-      }
-
-      if (this.axis.y) {
-        this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top - this.height / 2
-        this.maxTranslate.y =
-          containerBoundingRect.top + containerBoundingRect.height - boundingClientRect.top - this.height / 2
-      }
+    if (this.axis.y) {
+      this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top
+      this.maxTranslate.y = containerBoundingRect.bottom - (boundingClientRect.top + this.height)
     }
 
     if (options.helperClass) {
@@ -203,41 +177,14 @@ export class Helper {
       y: offset.y - this.initialPosition.y
     }
 
-    // Adjust for window scroll
-    translate.y -= window.pageYOffset - this.initialWindowScroll.top
-    translate.x -= window.pageXOffset - this.initialWindowScroll.left
+    if (this.lockToContainer) {
+      translate.x = limit(this.minTranslate.x, this.maxTranslate.x, translate.x)
+      translate.y = limit(this.minTranslate.y, this.maxTranslate.y, translate.y)
+    }
+
+    if (this.motion === Motion.Snap) setTransitionDuration(this.element, 250)
 
     this.translate = translate
-
-    if (this.lockToContainer) {
-      const [minLockOffset, maxLockOffset] = getLockPixelOffsets({
-        height: this.height,
-        lockOffset: this.lockOffset,
-        width: this.width
-      })
-      const minOffset = {
-        x: this.width / 2 - minLockOffset.x,
-        y: this.height / 2 - minLockOffset.y
-      }
-      const maxOffset = {
-        x: this.width / 2 - maxLockOffset.x,
-        y: this.height / 2 - maxLockOffset.y
-      }
-
-      translate.x = limit(this.minTranslate.x + minOffset.x, this.maxTranslate.x - maxOffset.x, translate.x)
-      translate.y = limit(this.minTranslate.y + minOffset.y, this.maxTranslate.y - maxOffset.y, translate.y)
-    }
-
-    if (this.lockAxis === 'x') {
-      translate.y = 0
-    } else if (this.lockAxis === 'y') {
-      translate.x = 0
-    }
-
-    // if (isKeySorting && keyboardSortingTransitionDuration && !ignoreTransition) {
-    //   setTransitionDuration(this.element, keyboardSortingTransitionDuration)
-    // }
-
     setTranslate3d(this.element, translate)
   }
 

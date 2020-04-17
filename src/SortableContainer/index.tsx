@@ -124,7 +124,6 @@ export default function sortableContainer<P>(
       }
 
       this.helper = new Helper(node, {
-        lockAxis: this.props.lockAxis,
         axis: this.props.axis,
         position,
         lockToContainer: this.props.lockToContainerEdges,
@@ -292,7 +291,7 @@ export default function sortableContainer<P>(
       }
     }
 
-    animateNodes() {
+    animateNodes = () => {
       const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing, hideSortableGhost, onSortOver } = this.props
       const { containerScrollDelta, windowScrollDelta } = this
       const nodes = this.manager.getOrderedRefs()

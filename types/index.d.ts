@@ -61,7 +61,6 @@ export interface SortableContainerProps {
   axis?: Axis
   dropAnimationDuration?: number
   dropAnimationEasing?: string
-  lockAxis?: Axis
   helperClass?: string
   helperStyle?: React.CSSProperties
   outOfTheWayAnimationDuration?: number

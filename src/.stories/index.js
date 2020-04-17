@@ -450,6 +450,7 @@ storiesOf('General | Layout / Horizontal list', module).add('Basic setup', () =>
     <div className={style.root}>
       <ListWrapper
         component={SortableList}
+        lockToContainerEdges
         axis={'x'}
         items={getItems(50, 300)}
         helperClass={style.stylizedHelper}
@@ -473,6 +474,7 @@ storiesOf('General | Layout / Grid', module)
           component={SortableList}
           axis={'xy'}
           items={getItems(10, false)}
+          lockToContainerEdges
           helperClass={style.stylizedHelper}
           className={classNames(style.list, style.stylizedList, style.grid)}
           itemClass={classNames(style.stylizedItem, style.gridItem)}
@@ -575,19 +577,6 @@ storiesOf('General | Configuration / Options', module)
           items={getItems(50, 50)}
           distance={20}
           helperClass={style.stylizedHelper}
-        />
-      </div>
-    )
-  })
-  .add('Lock axis', () => {
-    return (
-      <div className={style.root}>
-        <ListWrapper
-          component={SortableList}
-          items={getItems(50)}
-          helperClass={style.stylizedHelper}
-          lockAxis={'y'}
-          lockOffset={['0%', '100%']}
         />
       </div>
     )
