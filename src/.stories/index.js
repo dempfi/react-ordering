@@ -583,13 +583,7 @@ storiesOf('General | Configuration / Options', module)
   })
   .add('Window as scroll container', () => {
     return (
-      <ListWrapper
-        component={SortableList}
-        items={getItems(50, 59)}
-        className=''
-        useWindowAsScrollContainer={true}
-        helperClass={style.stylizedHelper}
-      />
+      <ListWrapper component={SortableList} items={getItems(50, 59)} className='' helperClass={style.stylizedHelper} />
     )
   })
   .add('Custom sortable helper container', () => {

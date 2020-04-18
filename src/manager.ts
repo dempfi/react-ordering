@@ -1,8 +1,9 @@
 import React from 'react'
-import { SortableNode, CollectionKey } from './types'
+import { CollectionKey } from './types'
+import { SortableElement } from './element'
 
 type Ref = {
-  node: SortableNode
+  node: SortableElement
   edgeOffset?: { left: number; top: number }
   boundingClientRect?: { left: number; top: number }
   translate?: { x: number; y: number }

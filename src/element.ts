@@ -1,9 +1,17 @@
 import { useRef, useEffect, useContext, useState, MutableRefObject } from 'react'
-import { ManagerContext } from './manager'
+import { ManagerContext, Manager } from './manager'
 
-import { SortableNode, CollectionKey } from './types'
+import { CollectionKey } from './types'
 
-export const isSortableNode = (node: any): node is SortableNode => !!node.sortableInfo
+export type SortableElement = HTMLElement & {
+  sortableInfo: {
+    collection: CollectionKey
+    disabled?: boolean
+    index: number
+    manager: Manager
+    setDragging: (isDragging: boolean) => void
+  }
+}
 
 type Options = {
   index: number
@@ -20,7 +28,7 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
 
   useEffect(() => {
     if (!ref.current || !context.manager) return
-    const node = ref.current as SortableNode
+    const node = ref.current as SortableElement
 
     node.sortableInfo = {
       collection,
@@ -38,10 +46,12 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
 
   useEffect(() => {
     if (!ref.current || !ref.current.sortableInfo) return
-    const node = ref.current as SortableNode
+    const node = ref.current as SortableElement
     node.sortableInfo.index = index
     node.sortableInfo.disabled = disabled
   }, [index, disabled])
 
   return [ref, { isDragging }]
 }
+
+export const isSortableNode = (node: any): node is SortableElement => !!node.sortableInfo

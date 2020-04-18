@@ -16,7 +16,10 @@ export class KeyboardBackend extends Backend {
     this.container.removeEventListener('keydown', this.handleKeyDown)
   }
 
-  lifted(element: HTMLElement) {}
+  lifted(element: HTMLElement) {
+    this.container.addEventListener('wheel', this.keyEnd, true)
+    this.container.addEventListener('mousedown', this.keyEnd, true)
+  }
 
   private handleKeyDown = (rawEvent: KeyboardEvent) => {
     const event = rawEvent as ElementEvent
@@ -32,8 +35,7 @@ export class KeyboardBackend extends Backend {
     if (this.keyCodes.lift.includes(event.keyCode) && !this.delegate.isSorting) {
       this.keyLift(event)
     } else if (this.keyCodes.drop.includes(event.keyCode)) {
-      this.delegate.drop()
-      this.initialFocusedNode?.focus()
+      this.keyEnd()
     } else if (this.keyCodes.cancel.includes(event.keyCode)) {
       this.delegate.cancel()
       this.initialFocusedNode?.focus()
@@ -44,7 +46,14 @@ export class KeyboardBackend extends Backend {
     }
   }
 
-  keyLift = (event: ElementEvent) => {
+  private keyEnd = () => {
+    this.delegate.drop()
+    this.initialFocusedNode?.focus()
+    this.container.removeEventListener('wheel', this.keyEnd)
+    this.container.removeEventListener('mousedown', this.keyEnd)
+  }
+
+  private keyLift = (event: ElementEvent) => {
     this.initialFocusedNode = event.target
 
     this.delegate.lift(
@@ -53,7 +62,7 @@ export class KeyboardBackend extends Backend {
         x: event.target.getBoundingClientRect().left,
         y: event.target.getBoundingClientRect().top
       },
-      this.motion
+      this
     )
   }
 }

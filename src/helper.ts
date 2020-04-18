@@ -1,18 +1,15 @@
+import { CSSProperties } from 'react'
 import {
   NodeType,
   setTranslate3d,
   setTransitionDuration,
-  limit,
-  getLockPixelOffsets,
+  clamp,
   setInlineStyles,
   getElementMargin,
-  getContainerGridGap,
   getEdgeOffset,
   setTransition
 } from './utils'
-import { Motion } from './backend/backend'
-import { Offset } from './types'
-import { CSSProperties } from 'react'
+import { Motion } from './backend'
 
 type Options = {
   axis?: 'x' | 'y' | 'xy'
@@ -21,7 +18,6 @@ type Options = {
   motion: Motion
   container: HTMLElement
   scrollContainer: HTMLElement
-  lockOffset?: Offset | [Offset, Offset]
   helperStyle?: CSSProperties
   helperClass?: string
 }
@@ -85,9 +81,7 @@ export class Helper {
     }
   }
 
-  containerBoundingRect: DOMRect
   initialScroll: { left: number; top: number }
-  lockOffset: string | number | [Offset, Offset]
   offsetEdge: { left: number; top: number }
 
   constructor(element: HTMLElement, options: Options) {
@@ -97,7 +91,6 @@ export class Helper {
     this.lockToContainer = options.lockToContainer ?? false
     this.container = options.container
     this.scrollContainer = options.scrollContainer
-    this.lockOffset = options.lockOffset ?? '50%'
     this.axis = options.axis
       ? {
           x: options.axis.indexOf('x') >= 0,
@@ -112,14 +105,12 @@ export class Helper {
 
     // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
     const margin = getElementMargin(element)
-    const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
 
     this.width = element.offsetWidth
     this.height = element.offsetHeight
 
     const boundingClientRect = element.getBoundingClientRect()
 
-    this.containerBoundingRect = containerBoundingRect
     this.offsetEdge = getEdgeOffset(element, this.container)
 
     this.initialScroll = {
@@ -143,6 +134,8 @@ export class Helper {
 
     this.minTranslate = { x: 0, y: 0 }
     this.maxTranslate = { x: 0, y: 0 }
+
+    const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
 
     if (this.axis.x) {
       this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left
@@ -178,8 +171,8 @@ export class Helper {
     }
 
     if (this.lockToContainer) {
-      translate.x = limit(this.minTranslate.x, this.maxTranslate.x, translate.x)
-      translate.y = limit(this.minTranslate.y, this.maxTranslate.y, translate.y)
+      translate.x = clamp(this.minTranslate.x, this.maxTranslate.x, translate.x)
+      translate.y = clamp(this.minTranslate.y, this.maxTranslate.y, translate.y)
     }
 
     if (this.motion === Motion.Snap) setTransitionDuration(this.element, 250)

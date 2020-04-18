@@ -16,7 +16,6 @@ export const orderingProps = [
   'helperContainer',
   'hideSortableGhost',
   'keyboardSortingTransitionDuration',
-  'lockOffset',
   'lockToContainerEdges',
   'onSortEnd',
   'onSortMove',
@@ -29,8 +28,7 @@ export const orderingProps = [
   'outOfTheWayAnimationEasing',
   'outOfTheWayAnimationDuration',
   'updateBeforeSortStart',
-  'useDragHandle',
-  'useWindowAsScrollContainer'
+  'useDragHandle'
 ]
 
 export const defaultKeyCodes = {
@@ -51,11 +49,9 @@ export const defaultProps = {
   outOfTheWayAnimationDuration: 200,
   getHelperDimensions: defaultGetHelperDimensions,
   hideSortableGhost: true,
-  lockOffset: '50%',
   lockToContainerEdges: false,
   pressDelay: 0,
   pressThreshold: 5,
   keyCodes: defaultKeyCodes,
-  shouldCancelStart: defaultShouldCancelStart,
-  useWindowAsScrollContainer: false
+  shouldCancelStart: defaultShouldCancelStart
 }

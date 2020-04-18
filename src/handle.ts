@@ -1,6 +1,6 @@
 import { useRef, useEffect, MutableRefObject } from 'react'
 
-export type SortableHandle = HTMLElement & {
+export type SortableHandleElement = HTMLElement & {
   sortableHandle: true
 }
 
@@ -9,11 +9,11 @@ export const useHandle = (): MutableRefObject<HTMLElement | undefined> => {
 
   useEffect(() => {
     if (!ref.current) return
-    const node = ref.current as SortableHandle
+    const node = ref.current as SortableHandleElement
     node.sortableHandle = true
   }, [])
 
   return ref
 }
 
-export const isSortableHandle = (node: any): node is SortableHandle => !!node.sortableHandle
+export const isSortableHandle = (node: any): node is SortableHandleElement => !!node.sortableHandle

@@ -1,6 +1,3 @@
-/* global process */
-import invariant from 'invariant'
-
 export function arrayMove(array, from, to) {
   // Will be deprecated soon. Consumers should install 'array-move' instead
   // https://www.npmjs.com/package/array-move
@@ -20,14 +17,11 @@ export function arrayMove(array, from, to) {
   return array
 }
 
-export function omit(obj, keysToOmit) {
-  return Object.keys(obj).reduce((acc, key) => {
-    if (keysToOmit.indexOf(key) === -1) {
-      acc[key] = obj[key]
-    }
-
-    return acc
-  }, {})
+export const omit = <T, K extends keyof T>(obj: T, keys: K | K[]): Omit<T, K> => {
+  const clone = { ...obj }
+  const keysToOmit = Array.isArray(keys) ? keys : [keys]
+  for (const key of keysToOmit) delete clone[key]
+  return clone
 }
 
 export const vendorPrefix = (function () {
@@ -78,9 +72,7 @@ export function closest<T>(el: HTMLElement, fn: (el: any) => el is T): T | undef
   return closest<T>(el.parentNode as HTMLElement, fn)
 }
 
-export function limit(min: number, max: number, value: number) {
-  return Math.max(min, Math.min(value, max))
-}
+export const clamp = (min: number, max: number, value: number) => Math.max(min, Math.min(value, max))
 
 function getPixelValue(stringValue: string) {
   if (stringValue.substr(-2) === 'px') {
@@ -137,56 +129,7 @@ export function getEdgeOffset(
   return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset)
 }
 
-export function getLockPixelOffset({ lockOffset, width, height }) {
-  let offsetX = lockOffset
-  let offsetY = lockOffset
-  let unit = 'px'
-
-  if (typeof lockOffset === 'string') {
-    const match = /^[+-]?\d*(?:\.\d*)?(px|%)$/.exec(lockOffset)
-
-    invariant(
-      match !== null,
-      'lockOffset value should be a number or a string of a ' + 'number followed by "px" or "%". Given %s',
-      lockOffset
-    )
-
-    offsetX = parseFloat(lockOffset)
-    offsetY = parseFloat(lockOffset)
-    unit = match[1]
-  }
-
-  invariant(isFinite(offsetX) && isFinite(offsetY), 'lockOffset value should be a finite. Given %s', lockOffset)
-
-  if (unit === '%') {
-    offsetX = (offsetX * width) / 100
-    offsetY = (offsetY * height) / 100
-  }
-
-  return {
-    x: offsetX,
-    y: offsetY
-  }
-}
-
-export function getLockPixelOffsets({ height, width, lockOffset }) {
-  const offsets = Array.isArray(lockOffset) ? lockOffset : [lockOffset, lockOffset]
-
-  invariant(
-    offsets.length === 2,
-    'lockOffset prop of SortableContainer should be a single ' + 'value or an array of exactly two values. Given %s',
-    lockOffset
-  )
-
-  const [minLockOffset, maxLockOffset] = offsets
-
-  return [
-    getLockPixelOffset({ height, lockOffset: minLockOffset, width }),
-    getLockPixelOffset({ height, lockOffset: maxLockOffset, width })
-  ]
-}
-
-export function isScrollable(el: HTMLElement): el is HTMLElement {
+export const isScrollable = (el: HTMLElement): el is HTMLElement => {
   if ((el as any) === document) return false
   const computedStyle = window.getComputedStyle(el)
   const overflowRegex = /(auto|scroll)/

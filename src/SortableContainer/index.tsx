@@ -23,15 +23,10 @@ import {
 import { AutoScroller } from '../auto-scroller'
 import { defaultProps, orderingProps } from './props'
 
-import { WrappedComponent, Config, SortableContainerProps, SortableNode } from '../types'
-import { isSortableNode } from '../element'
-import { BackendDelegate } from '../backend/backend-delegate'
-import { Motion, Backend } from '../backend/backend'
-import { MouseBackend } from '../backend/mouse-backend'
+import { WrappedComponent, Config, SortableContainerProps } from '../types'
+import { isSortableNode, SortableElement } from '../element'
+import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
 import { Helper } from '../helper'
-import { TouchBackend } from '../backend/touch-backend'
-import { KeyboardBackend } from '../backend/keyboard-backend'
-
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
   config: Config = { withRef: false }
@@ -50,7 +45,7 @@ export default function sortableContainer<P>(
     containerBoundingRect?: DOMRect
     index?: number
     offsetEdge?: { left: number; top: number }
-    sortableGhost?: SortableNode
+    sortableGhost?: SortableElement
     prevIndex?: number
     backends: Backend[] = []
     helper!: Helper
@@ -91,7 +86,7 @@ export default function sortableContainer<P>(
       this.backends = []
     }
 
-    nodeIsChild = (node: SortableNode) => {
+    nodeIsChild = (node: SortableElement) => {
       return node.sortableInfo.manager === this.manager
     }
 
@@ -103,13 +98,13 @@ export default function sortableContainer<P>(
       this.manager.active = undefined
     }
 
-    async lift(element: HTMLElement, position: { x: number; y: number }, motion: Motion) {
+    async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
       const node = closest(element, isSortableNode)!
-      this.backends.forEach(b => b.lifted(node))
+      backend.lifted(node)
 
       const { index, collection } = node.sortableInfo
       this.manager.active = { collection, index }
-      this.currentMotion = motion
+      this.currentMotion = backend.motion
 
       const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
 
@@ -127,10 +122,9 @@ export default function sortableContainer<P>(
         axis: this.props.axis,
         position,
         lockToContainer: this.props.lockToContainerEdges,
-        motion,
+        motion: this.currentMotion,
         container: this.container,
         scrollContainer: this.scrollContainer,
-        lockOffset: this.props.lockOffset,
         helperClass: this.props.helperClass,
         helperStyle: this.props.helperStyle
       })
@@ -552,8 +546,6 @@ export default function sortableContainer<P>(
       }
     }
 
-    //  ===========
-    // NEW PUBLIC API
     get isSorting() {
       return this.state.sorting
     }

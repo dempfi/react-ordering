@@ -1,21 +1,8 @@
 import React from 'react'
-import { Manager } from './manager'
 
 export type CollectionKey = number | string
 
-export type SortableNode = HTMLElement & {
-  sortableInfo: {
-    collection: CollectionKey
-    disabled?: boolean
-    index: number
-    manager: Manager
-    setDragging: (isDragging: boolean) => void
-  }
-}
-
 export type Axis = 'x' | 'y' | 'xy'
-
-export type Offset = number | string
 
 export interface SortStart {
   node: Element
@@ -102,7 +89,6 @@ export interface SortableContainerProps {
   useDragHandle?: boolean
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
-  lockOffset?: Offset | [Offset, Offset]
   getHelperDimensions?: (sort: SortStart) => Dimensions
   helperContainer?: HTMLElement | HelperContainerGetter
 }
