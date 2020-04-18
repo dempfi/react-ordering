@@ -16,4 +16,4 @@ export const useHandle = (): MutableRefObject<HTMLElement | undefined> => {
   return ref
 }
 
-export const isSortableHandle = (node: any): node is SortableHandleElement => !!node.sortableHandle
+export const isSortableHandleElement = (node: any): node is SortableHandleElement => !!node.sortableHandle

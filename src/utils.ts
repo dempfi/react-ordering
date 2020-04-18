@@ -129,7 +129,7 @@ export function getEdgeOffset(
   return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset)
 }
 
-export const isScrollable = (el: HTMLElement): el is HTMLElement => {
+export const isScrollableElement = (el: HTMLElement): el is HTMLElement => {
   if ((el as any) === document) return false
   const computedStyle = window.getComputedStyle(el)
   const overflowRegex = /(auto|scroll)/

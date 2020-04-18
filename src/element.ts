@@ -54,4 +54,4 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
   return [ref, { isDragging }]
 }
 
-export const isSortableNode = (node: any): node is SortableElement => !!node.sortableInfo
+export const isSortableElement = (node: any): node is SortableElement => !!node.sortableInfo

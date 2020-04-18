@@ -1,7 +1,7 @@
 import React from 'react'
 import { findDOMNode } from 'react-dom'
 
-import { isSortableHandle } from '../handle'
+import { isSortableHandleElement } from '../handle'
 import { Manager, ManagerContext } from '../manager'
 
 import {
@@ -16,7 +16,7 @@ import {
   setTransitionDuration,
   setTranslate3d,
   getScrollAdjustedBoundingClientRect,
-  isScrollable,
+  isScrollableElement,
   getTargetIndex
 } from '../utils'
 
@@ -24,7 +24,7 @@ import { AutoScroller } from '../auto-scroller'
 import { defaultProps, orderingProps } from './props'
 
 import { WrappedComponent, Config, SortableContainerProps } from '../types'
-import { isSortableNode, SortableElement } from '../element'
+import { isSortableElement, SortableElement } from '../element'
 import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
 import { Helper } from '../helper'
 export default function sortableContainer<P>(
@@ -68,7 +68,7 @@ export default function sortableContainer<P>(
 
     componentDidMount() {
       this.container = this.getContainer()
-      this.scrollContainer = closest(this.container, isScrollable) || this.container
+      this.scrollContainer = closest(this.container, isScrollableElement) || this.container
       this.autoScroller = new AutoScroller(this.scrollContainer, this.animateNodes)
 
       this.backends = [
@@ -99,7 +99,7 @@ export default function sortableContainer<P>(
     }
 
     async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
-      const node = closest(element, isSortableNode)!
+      const node = closest(element, isSortableElement)!
       backend.lifted(node)
 
       const { index, collection } = node.sortableInfo
@@ -565,11 +565,11 @@ export default function sortableContainer<P>(
       if (this.props.shouldCancelStart!(element)) return false
       if (this.state.sorting) return false
 
-      const sortableElement = closest(element, isSortableNode)
+      const sortableElement = closest(element, isSortableElement)
       if (!sortableElement || !this.nodeIsChild(sortableElement)) return false
       if (sortableElement.sortableInfo.disabled) return false
 
-      if (this.props.useDragHandle && !closest(element, isSortableHandle)) return false
+      if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
       return true
     }
   }
