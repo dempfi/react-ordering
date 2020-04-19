@@ -2,7 +2,7 @@ import React from 'react'
 import { findDOMNode } from 'react-dom'
 
 import { isSortableHandleElement } from '../handle'
-import { Manager, ManagerContext } from '../manager'
+import { Context } from '../context'
 
 import {
   closest,
@@ -27,13 +27,17 @@ import { WrappedComponent, Config, SortableContainerProps } from '../types'
 import { isSortableElement, SortableElement } from '../element'
 import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
 import { Helper } from '../helper'
+import { CONTEXT_KEY } from '../constants'
+
+type SortableContainerElement = HTMLElement & { [CONTEXT_KEY]: Context }
+
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
   config: Config = { withRef: false }
 ) {
   return class WithSortableContainer extends React.Component<SortableContainerProps> implements BackendDelegate {
-    manager = new Manager()
-    container!: HTMLElement
+    manager = new Context()
+    container!: SortableContainerElement
     scrollContainer!: HTMLElement
     autoScroller!: AutoScroller
     _awaitingUpdateBeforeSortStart?: boolean
@@ -70,6 +74,7 @@ export default function sortableContainer<P>(
       this.container = this.getContainer()
       this.scrollContainer = closest(this.container, isScrollableElement) || this.container
       this.autoScroller = new AutoScroller(this.scrollContainer, this.animateNodes)
+      this.container[CONTEXT_KEY] = this.manager
 
       this.backends = [
         new MouseBackend(this, this.container),
@@ -81,7 +86,6 @@ export default function sortableContainer<P>(
 
     componentWillUnmount() {
       this.helper?.detach()
-      if (!this.container) return
       this.backends.forEach(b => b.detach())
       this.backends = []
     }
@@ -91,6 +95,7 @@ export default function sortableContainer<P>(
     }
 
     cancel = () => {
+      // If we
       if (this.isSnapMotion) {
         this.snap(this.index! - this.newIndex!)
         this.drop()
@@ -509,17 +514,14 @@ export default function sortableContainer<P>(
     }
 
     getContainer() {
-      return findDOMNode(this) as HTMLElement
+      console.log(findDOMNode(this))
+      return findDOMNode(this) as SortableContainerElement
     }
 
     render() {
       const ref = config.withRef ? 'wrappedInstance' : null
 
-      return (
-        <ManagerContext.Provider value={{ manager: this.manager }}>
-          <WrappedComponent ref={ref} {...omit(this.props, orderingProps)} />
-        </ManagerContext.Provider>
-      )
+      return <WrappedComponent ref={ref} {...omit(this.props, orderingProps)} />
     }
 
     get helperContainer() {
@@ -574,3 +576,5 @@ export default function sortableContainer<P>(
     }
   }
 }
+
+export const isSortableContainerElement = (el: any): el is SortableContainerElement => !!el[CONTEXT_KEY]
