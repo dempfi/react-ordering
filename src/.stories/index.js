@@ -140,7 +140,7 @@ const Category = props => {
       <ListWrapper
         component={SortableList}
         className={style.categoryList}
-        items={getItems(3, 59)}
+        items={getItems(10, 59)}
         shouldUseDragHandle={true}
         helperClass={style.stylizedHelper}
       />
@@ -174,31 +174,30 @@ class ListWrapper extends Component {
     height: 600
   }
 
-  onSortStart = (sortEvent, nativeEvent) => {
+  onSortStart = sortEvent => {
     const { onSortStart } = this.props
     this.setState({ isSorting: true })
 
     document.body.style.cursor = 'grabbing'
 
     if (onSortStart) {
-      onSortStart(sortEvent, nativeEvent, this.refs.component)
+      onSortStart(sortEvent)
     }
   }
 
-  onSortEnd = (sortEvent, nativeEvent) => {
+  onSortEnd = ({ from, to }) => {
     const { onSortEnd } = this.props
-    const { oldIndex, newIndex } = sortEvent
     const { items } = this.state
 
     this.setState({
-      items: arrayMove(items, oldIndex, newIndex),
+      items: arrayMove(items, from, to),
       isSorting: false
     })
 
     document.body.style.cursor = ''
 
     if (onSortEnd) {
-      onSortEnd(sortEvent, nativeEvent, this.refs.component)
+      onSortEnd(sortEvent)
     }
   }
 
@@ -450,7 +449,6 @@ storiesOf('General | Layout / Horizontal list', module).add('Basic setup', () =>
     <div className={style.root}>
       <ListWrapper
         component={SortableList}
-        lockToContainerEdges
         axis={'x'}
         items={getItems(50, 300)}
         helperClass={style.stylizedHelper}
@@ -463,18 +461,12 @@ storiesOf('General | Layout / Horizontal list', module).add('Basic setup', () =>
 
 storiesOf('General | Layout / Grid', module)
   .add('Basic setup', () => {
-    const transformOrigin = {
-      x: 0,
-      y: 0
-    }
-
     return (
       <div className={style.root}>
         <ListWrapper
           component={SortableList}
           axis={'xy'}
           items={getItems(10, false)}
-          lockToContainerEdges
           helperClass={style.stylizedHelper}
           className={classNames(style.list, style.stylizedList, style.grid)}
           itemClass={classNames(style.stylizedItem, style.gridItem)}
@@ -482,6 +474,7 @@ storiesOf('General | Layout / Grid', module)
       </div>
     )
   })
+  // FIXME BROKEN
   .add('Large first item', () => {
     return (
       <div className={style.root}>
@@ -581,9 +574,28 @@ storiesOf('General | Configuration / Options', module)
       </div>
     )
   })
+  .add('Lock axis', () => {
+    return (
+      <div className={style.root}>
+        <ListWrapper
+          component={SortableList}
+          items={getItems(50)}
+          helperClass={style.stylizedHelper}
+          lockAxis={'y'}
+          lockOffset={['0%', '100%']}
+        />
+      </div>
+    )
+  })
   .add('Window as scroll container', () => {
     return (
-      <ListWrapper component={SortableList} items={getItems(50, 59)} className='' helperClass={style.stylizedHelper} />
+      <ListWrapper
+        component={SortableList}
+        items={getItems(50, 59)}
+        className=''
+        useWindowAsScrollContainer={true}
+        helperClass={style.stylizedHelper}
+      />
     )
   })
   .add('Custom sortable helper container', () => {
@@ -684,6 +696,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-window', module)
           items={getItems(500, 59)}
           itemHeight={59}
           helperClass={style.stylizedHelper}
+          // FIXME seems broken
           onSortEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Window that the order of the items has changed
             const instance = ref.getWrappedInstance()

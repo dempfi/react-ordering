@@ -1,4 +1,3 @@
-import { CollectionKey } from './types'
 import { SortableElement } from './element'
 
 type SortableItem = {
@@ -9,8 +8,8 @@ type SortableItem = {
 }
 
 export class Context {
-  private items: Record<CollectionKey, SortableItem[]> = {}
-  private _active?: { collection: CollectionKey; index: number }
+  private items: SortableItem[] = []
+  private _active?: { index: number }
 
   get active() {
     return this._active
@@ -22,19 +21,15 @@ export class Context {
     if (newActive) this.getActive()!.node.sortableInfo.setDragging(true)
   }
 
-  add(collection: CollectionKey, ref: SortableItem) {
-    if (!this.items[collection]) {
-      this.items[collection] = []
-    }
-
-    this.items[collection].push(ref)
+  add(ref: SortableItem) {
+    this.items.push(ref)
   }
 
-  remove(collection: CollectionKey, ref: SortableItem) {
-    const index = this.findIndex(collection, ref)
+  remove(ref: SortableItem) {
+    const index = this.findIndex(ref)
 
     if (index !== -1) {
-      this.items[collection].splice(index, 1)
+      this.items.splice(index, 1)
     }
   }
 
@@ -46,23 +41,19 @@ export class Context {
     return this.nodeAtIndex(this.active?.index)
   }
 
-  nodeAtIndex(index?: number, collection = this.active?.collection!) {
-    return this.items[collection].find(
+  nodeAtIndex(index?: number) {
+    return this.items.find(
       // eslint-disable-next-line eqeqeq
       ({ node }) => node.sortableInfo.index == index
     )
   }
 
-  findIndex(collection: CollectionKey, ref: SortableItem) {
-    return this.items[collection].indexOf(ref)
+  findIndex(ref: SortableItem) {
+    return this.items.indexOf(ref)
   }
 
-  getOrderedRefs(collection = this.active?.collection!) {
-    return this.items[collection].sort(sortByIndex)
-  }
-
-  getRefs(collection = this.active?.collection!) {
-    return this.items[collection]
+  getOrderedRefs() {
+    return this.items.sort(sortByIndex)
   }
 }
 

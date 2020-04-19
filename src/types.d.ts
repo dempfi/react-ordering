@@ -1,57 +1,14 @@
 import React from 'react'
-
-export type CollectionKey = number | string
+import { Motion } from './backend'
 
 export type Axis = 'x' | 'y' | 'xy'
 
-export interface SortStart {
-  node: Element
-  index: number
-  collection: CollectionKey
-  isKeySorting: boolean
-  nodes: HTMLElement[]
+export interface SortEvent {
+  from: number
+  to: number
+  motion: Motion
   helper: HTMLElement
 }
-
-export interface SortOver {
-  index: number
-  oldIndex: number
-  newIndex: number
-  collection: CollectionKey
-  isKeySorting: boolean
-  nodes: HTMLElement[]
-  helper: HTMLElement
-}
-
-export interface SortEnd {
-  oldIndex: number
-  newIndex: number
-  collection: CollectionKey
-  isKeySorting: boolean
-  nodes: HTMLElement[]
-}
-
-export type SortMouseEvent = Omit<MouseEvent, 'target'> & {
-  target: HTMLElement
-}
-
-export type SortTouchEvent = Omit<TouchEvent, 'target'> & {
-  target: HTMLElement
-}
-
-export type SortKeyboardEvent = Omit<KeyboardEvent, 'target'> & {
-  target: HTMLElement
-}
-
-export type SortEvent = SortMouseEvent | SortTouchEvent
-
-export type SortStartHandler = (sort: SortStart, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
-
-export type SortMoveHandler = (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
-
-export type SortEndHandler = (sort: SortEnd, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
-
-export type SortOverHandler = (sort: SortOver, event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => void
 
 export type HelperContainerGetter = () => HTMLElement
 
@@ -81,15 +38,15 @@ export interface SortableContainerProps {
   pressThreshold?: number
   distance?: number
   shouldCancelStart?: (element: HTMLElement) => boolean
-  updateBeforeSortStart?: SortStartHandler
-  onSortStart?: SortStartHandler
-  onSortMove?: SortMoveHandler
-  onSortEnd?: SortEndHandler
-  onSortOver?: SortOverHandler
+  updateBeforeSortStart?: (event: SortEvent) => void
+  onSortStart?: (event: SortEvent) => void
+  onSortMove?: (event: SortEvent) => void
+  onSortEnd: (event: SortEvent) => void
+  onSortOver?: (event: SortEvent) => void
   useDragHandle?: boolean
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
-  getHelperDimensions?: (sort: SortStart) => Dimensions
+  getHelperDimensions?: (event: SortEvent) => Dimensions
   helperContainer?: HTMLElement | HelperContainerGetter
 }
 

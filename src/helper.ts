@@ -12,7 +12,7 @@ import {
 import { Motion } from './backend'
 
 type Options = {
-  axis?: 'x' | 'y' | 'xy'
+  directions: { horizontal: boolean; vertical: boolean }
   position: { x: number; y: number }
   lockToContainer?: boolean
   motion: Motion
@@ -54,13 +54,13 @@ export class Helper {
   translate!: { x: number; y: number }
   minTranslate: { x: number; y: number }
   maxTranslate: { x: number; y: number }
+  readonly element: HTMLElement
   private dropAnimation = {
     duration: 250,
     easing: 'cubic-bezier(.2,1,.1,1)'
   }
-  private axis: { x: boolean; y: boolean }
+  private directions: { horizontal: boolean; vertical: boolean }
   private initialPosition: { x: number; y: number }
-  private element: HTMLElement
   private initialWindowScroll: { left: number; top: number }
   private motion: Motion
   private lockToContainer: boolean
@@ -91,12 +91,7 @@ export class Helper {
     this.lockToContainer = options.lockToContainer ?? false
     this.container = options.container
     this.scrollContainer = options.scrollContainer
-    this.axis = options.axis
-      ? {
-          x: options.axis.indexOf('x') >= 0,
-          y: options.axis.indexOf('y') >= 0
-        }
-      : { x: false, y: true }
+    this.directions = options.directions
 
     this.initialWindowScroll = {
       left: window.pageXOffset,
@@ -137,12 +132,12 @@ export class Helper {
 
     const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
 
-    if (this.axis.x) {
+    if (this.directions.horizontal) {
       this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left
       this.maxTranslate.x = containerBoundingRect.right - (boundingClientRect.left + this.width)
     }
 
-    if (this.axis.y) {
+    if (this.directions.vertical) {
       this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top
       this.maxTranslate.y = containerBoundingRect.bottom - (boundingClientRect.top + this.height)
     }

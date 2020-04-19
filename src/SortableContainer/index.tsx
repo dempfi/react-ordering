@@ -58,11 +58,11 @@ export default function sortableContainer<P>(
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
 
-    get axis() {
-      if (!this.props.axis) return { x: false, y: true }
+    get directions() {
+      if (!this.props.axis) return { horizontal: false, vertical: true }
       return {
-        x: this.props.axis.indexOf('x') >= 0,
-        y: this.props.axis.indexOf('y') >= 0
+        horizontal: this.props.axis.indexOf('x') >= 0,
+        vertical: this.props.axis.indexOf('y') >= 0
       }
     }
 
@@ -107,8 +107,8 @@ export default function sortableContainer<P>(
       const node = closest(element, isSortableElement)!
       backend.lifted(node)
 
-      const { index, collection } = node.sortableInfo
-      this.manager.active = { collection, index }
+      const { index } = node.sortableInfo
+      this.manager.active = { index }
       this.currentMotion = backend.motion
 
       const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
@@ -117,14 +117,20 @@ export default function sortableContainer<P>(
         this._awaitingUpdateBeforeSortStart = true
 
         try {
-          await updateBeforeSortStart({ collection, index, node }, event)
+          await updateBeforeSortStart({
+            from: index,
+            to: index,
+            motion: this.currentMotion!,
+            // FIXME, there's no helper yer
+            helper: this.helper?.element
+          })
         } finally {
           this._awaitingUpdateBeforeSortStart = false
         }
       }
 
       this.helper = new Helper(node, {
-        axis: this.props.axis,
+        directions: this.directions,
         position,
         lockToContainer: this.props.lockToContainerEdges,
         motion: this.currentMotion,
@@ -172,17 +178,12 @@ export default function sortableContainer<P>(
         sortingIndex: index
       })
 
-      if (onSortStart) {
-        onSortStart(
-          {
-            node,
-            index,
-            collection,
-            nodes: this.manager.getOrderedRefs().map(r => r.node)
-          },
-          event
-        )
-      }
+      this.props.onSortStart?.({
+        from: this.index!,
+        to: this.newIndex ?? this.index!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
     }
 
     move(position: { x: number; y: number }) {
@@ -220,8 +221,8 @@ export default function sortableContainer<P>(
 
       const shouldAdjustForSize = prevIndex < newIndex
       const sizeAdjustment = {
-        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.helper.width : 0,
-        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helper.height : 0
+        x: shouldAdjustForSize && this.directions.horizontal ? targetNode.offsetWidth - this.helper.width : 0,
+        y: shouldAdjustForSize && this.directions.vertical ? targetNode.offsetHeight - this.helper.height : 0
       }
 
       this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
@@ -229,9 +230,6 @@ export default function sortableContainer<P>(
 
     async drop() {
       const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
-      const {
-        active: { collection }
-      } = this.manager
       const nodes = this.manager.getOrderedRefs()
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
@@ -280,14 +278,12 @@ export default function sortableContainer<P>(
         sortingIndex: null
       })
 
-      if (typeof onSortEnd === 'function') {
-        onSortEnd({
-          collection,
-          newIndex: this.newIndex!,
-          oldIndex: this.index!,
-          nodes: nodes.map(r => r.node)
-        })
-      }
+      this.props.onSortEnd({
+        from: this.index!,
+        to: this.newIndex ?? this.index!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
     }
 
     animateNodes = () => {
@@ -360,8 +356,8 @@ export default function sortableContainer<P>(
           setTransition(node, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
         }
 
-        if (this.axis.x) {
-          if (this.axis.y) {
+        if (this.directions.horizontal) {
+          if (this.directions.vertical) {
             // Calculations for a grid setup
             if (
               mustShiftForward ||
@@ -424,7 +420,7 @@ export default function sortableContainer<P>(
               }
             }
           }
-        } else if (this.axis.y) {
+        } else if (this.directions.vertical) {
           if (
             mustShiftBackward ||
             (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
@@ -456,15 +452,14 @@ export default function sortableContainer<P>(
       }
 
       const oldIndex = this.isSnapMotion ? this.prevIndex : prevIndex
-      if (onSortOver && this.newIndex !== oldIndex) {
-        onSortOver({
-          collection: this.manager.active!.collection,
-          index: this.index!,
-          newIndex: this.newIndex!,
-          oldIndex: oldIndex!,
-          nodes: nodes.map(r => r.node)
-        })
-      }
+
+      if (this.newIndex === oldIndex) return
+      this.props.onSortOver?.({
+        from: this.index!,
+        to: oldIndex!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
     }
 
     autoscroll = () => {
@@ -480,7 +475,7 @@ export default function sortableContainer<P>(
         let scrollX = 0
         let scrollY = 0
 
-        if (this.axis.x) {
+        if (this.directions.horizontal) {
           translate.x = Math.min(
             this.helper.maxTranslate.x,
             Math.max(this.helper.minTranslate.x, this.helper.translate.x)
@@ -488,7 +483,7 @@ export default function sortableContainer<P>(
           scrollX = this.helper.translate.x - translate.x
         }
 
-        if (this.axis.y) {
+        if (this.directions.vertical) {
           translate.y = Math.min(
             this.helper.maxTranslate.y,
             Math.max(this.helper.minTranslate.y, this.helper.translate.y)

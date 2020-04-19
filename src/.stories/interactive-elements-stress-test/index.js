@@ -68,13 +68,13 @@ export default class InteractiveElements extends React.Component {
     )
   }
 
-  onSortEnd = ({ oldIndex, newIndex }) => {
-    if (oldIndex === newIndex) {
+  onSortEnd = ({ from, to }) => {
+    if (from === to) {
       return
     }
 
     this.setState(({ items }) => ({
-      items: arrayMove(items, oldIndex, newIndex)
+      items: arrayMove(items, from, to)
     }))
   }
 }

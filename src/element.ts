@@ -1,14 +1,12 @@
 import { useRef, useEffect, useState, MutableRefObject } from 'react'
 import { Context } from './context'
 
-import { CollectionKey } from './types'
 import { closest } from './utils'
 import { isSortableContainerElement } from './SortableContainer'
 import { CONTEXT_KEY } from './constants'
 
 export type SortableElement = HTMLElement & {
   sortableInfo: {
-    collection: CollectionKey
     disabled?: boolean
     index: number
     manager?: Context
@@ -18,13 +16,12 @@ export type SortableElement = HTMLElement & {
 
 type Options = {
   index: number
-  collection?: CollectionKey
   disabled?: boolean
 }
 
 type Result = [MutableRefObject<HTMLElement | undefined>, { isDragging: boolean }]
 
-export const useElement = ({ index, collection = 0, disabled }: Options): Result => {
+export const useElement = ({ index, disabled }: Options): Result => {
   const elementRef = useRef<SortableElement>()
   const [isDragging, setIsDragging] = useState(false)
 
@@ -35,7 +32,6 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
     const context = container?.[CONTEXT_KEY]
 
     element.sortableInfo = {
-      collection,
       disabled,
       index,
       manager: context,
@@ -44,9 +40,9 @@ export const useElement = ({ index, collection = 0, disabled }: Options): Result
       }
     }
 
-    context?.add(collection!, { node: element })
-    return () => context?.remove(collection!, { node: element })
-  }, [collection])
+    context?.add({ node: element })
+    return () => context?.remove({ node: element })
+  }, [])
 
   useEffect(() => {
     if (!elementRef.current || !elementRef.current.sortableInfo) return
