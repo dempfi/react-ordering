@@ -98,9 +98,9 @@ class GroupedItems extends React.Component {
     })
   }
 
-  handleShouldCancelStart = event => {
+  handleShouldCancelStart = element => {
     const { items, selectedItems } = this.state
-    const item = items[event.target.sortableInfo.index]
+    const item = items[element.sortableInfo.index]
 
     // Never cancel start if there are no selected items
     if (!selectedItems.length) {

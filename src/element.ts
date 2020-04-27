@@ -1,47 +1,57 @@
-import { useRef, useEffect, useContext, useState, MutableRefObject } from 'react'
-import { ManagerContext } from './manager'
+import { useRef, useEffect, useState, MutableRefObject } from 'react'
+import { Context } from './context'
 
-import { SortableNode, CollectionKey } from './types'
+import { closest } from './utils'
+import { isSortableContainerElement } from './SortableContainer'
+import { CONTEXT_KEY } from './constants'
 
-export const isSortableNode = (node: any): node is SortableNode => !!node.sortableInfo
+export type SortableElement = HTMLElement & {
+  sortableInfo: {
+    disabled?: boolean
+    index: number
+    manager?: Context
+    setDragging: (isDragging: boolean) => void
+  }
+}
 
 type Options = {
   index: number
-  collection?: CollectionKey
   disabled?: boolean
 }
 
 type Result = [MutableRefObject<HTMLElement | undefined>, { isDragging: boolean }]
 
-export const useElement = ({ index, collection = 0, disabled }: Options): Result => {
-  const ref = useRef<HTMLElement>()
-  const context = useContext(ManagerContext)
+export const useElement = ({ index, disabled }: Options): Result => {
+  const elementRef = useRef<SortableElement>()
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    if (!ref.current || !context.manager) return
-    const node = ref.current as SortableNode
+    if (!elementRef.current) return
+    const element = elementRef.current as SortableElement
+    const container = closest(element, isSortableContainerElement)
+    const context = container?.[CONTEXT_KEY]
 
-    node.sortableInfo = {
-      collection,
+    element.sortableInfo = {
       disabled,
       index,
-      manager: context.manager,
+      manager: context,
       setDragging: (dragging: boolean) => {
         setIsDragging(dragging)
       }
     }
 
-    context.manager?.add(collection!, { node })
-    return () => context.manager?.remove(collection!, { node })
-  }, [collection, context.manager])
+    context?.add({ node: element })
+    return () => context?.remove({ node: element })
+  }, [])
 
   useEffect(() => {
-    if (!ref.current || !ref.current.sortableInfo) return
-    const node = ref.current as SortableNode
-    node.sortableInfo.index = index
-    node.sortableInfo.disabled = disabled
+    if (!elementRef.current || !elementRef.current.sortableInfo) return
+    const element = elementRef.current as SortableElement
+    element.sortableInfo.index = index
+    element.sortableInfo.disabled = disabled
   }, [index, disabled])
 
-  return [ref, { isDragging }]
+  return [elementRef, { isDragging }]
 }
+
+export const isSortableElement = (el: any): el is SortableElement => !!el.sortableInfo

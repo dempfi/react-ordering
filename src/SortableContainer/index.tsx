@@ -1,288 +1,160 @@
 import React from 'react'
 import { findDOMNode } from 'react-dom'
-import invariant from 'invariant'
 
-import { isSortableHandle } from '../handle'
-import { Manager, ManagerContext } from '../manager'
+import { isSortableHandleElement } from '../handle'
+import { Context } from '../context'
 
 import {
-  cloneNode,
   closest,
-  events,
-  getScrollingParent,
   getContainerGridGap,
   getEdgeOffset,
   getElementMargin,
-  getLockPixelOffsets,
-  getPosition,
-  isTouchEvent,
-  limit,
-  NodeType,
   omit,
   provideDisplayName,
   setInlineStyles,
   setTransition,
   setTransitionDuration,
   setTranslate3d,
-  getTargetIndex,
-  getScrollAdjustedBoundingClientRect
+  getScrollAdjustedBoundingClientRect,
+  isScrollableElement,
+  getTargetIndex
 } from '../utils'
 
 import { AutoScroller } from '../auto-scroller'
-import { defaultProps, orderingProps, defaultKeyCodes } from './props'
+import { defaultProps, orderingProps } from './props'
 
-import {
-  WrappedComponent,
-  Config,
-  SortableContainerProps,
-  SortableNode,
-  SortEvent,
-  SortTouchEvent,
-  SortKeyboardEvent,
-  SortMouseEvent
-} from '../types'
-import { isSortableNode } from '../element'
+import { WrappedComponent, Config, SortableContainerProps } from '../types'
+import { isSortableElement, SortableElement } from '../element'
+import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
+import { Helper } from '../helper'
+import { CONTEXT_KEY } from '../constants'
+
+type SortableContainerElement = HTMLElement & { [CONTEXT_KEY]: Context }
 
 export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
   config: Config = { withRef: false }
 ) {
-  return class WithSortableContainer extends React.Component<SortableContainerProps> {
-    manager = new Manager()
-    document!: Document
-    container!: HTMLElement
-    contentWindow!: Window
+  return class WithSortableContainer extends React.Component<SortableContainerProps> implements BackendDelegate {
+    manager = new Context()
+    container!: SortableContainerElement
     scrollContainer!: HTMLElement
     autoScroller!: AutoScroller
-    touched = false
-    helper!: HTMLElement
-    pressTimer?: number
-    cancelTimer?: number
     _awaitingUpdateBeforeSortStart?: boolean
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
-    translate?: { x: number; y: number }
-    initialOffset?: { x: number; y: number }
     initialScroll?: { left: number; top: number }
     initialWindowScroll?: { left: number; top: number }
-    initialFocusedNode?: HTMLElement
     newIndex?: number
-    helperWidth?: number
-    helperHeight?: number
     marginOffset?: { x: number; y: number }
     containerBoundingRect?: DOMRect
     index?: number
     offsetEdge?: { left: number; top: number }
-    sortableGhost?: SortableNode
+    sortableGhost?: SortableElement
     prevIndex?: number
-    position?: { x: number; y: number }
-    listenerNode?: HTMLElement | Window
-    minTranslate = { x: 0, y: 0 }
-    maxTranslate = { x: 0, y: 0 }
-
-    constructor(props: SortableContainerProps) {
-      super(props)
-    }
+    backends: Backend[] = []
+    helper!: Helper
+    currentMotion?: Motion
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
 
-    get axis() {
-      if (!this.props.axis) return { x: false, y: true }
+    get directions() {
+      if (!this.props.axis) return { horizontal: false, vertical: true }
       return {
-        x: this.props.axis.indexOf('x') >= 0,
-        y: this.props.axis.indexOf('y') >= 0
+        horizontal: this.props.axis.indexOf('x') >= 0,
+        vertical: this.props.axis.indexOf('y') >= 0
       }
+    }
+
+    get isSnapMotion() {
+      return this.currentMotion === Motion.Snap
     }
 
     componentDidMount() {
-      const { useWindowAsScrollContainer } = this.props
-      const container = this.getContainer()
+      this.container = this.getContainer()
+      this.scrollContainer = closest(this.container, isScrollableElement) || this.container
+      this.autoScroller = new AutoScroller(this.scrollContainer, this.animateNodes)
+      this.container[CONTEXT_KEY] = this.manager
 
-      Promise.resolve(container).then(containerNode => {
-        this.container = containerNode
-        this.document = this.container.ownerDocument || document
-
-        /*
-         *  Set our own default rather than using defaultProps because Jest
-         *  snapshots will serialize window, causing a RangeError
-         *  https://github.com/clauderic/react-ordering/issues/249
-         */
-        const contentWindow = this.props.contentWindow || this.document.defaultView || window
-
-        this.contentWindow = typeof contentWindow === 'function' ? contentWindow() : contentWindow
-
-        this.scrollContainer = useWindowAsScrollContainer
-          ? this.document.scrollingElement || this.document.documentElement
-          : getScrollingParent(this.container) || this.container
-
-        this.autoScroller = new AutoScroller(this.scrollContainer, this.onAutoScroll)
-
-        events.start.forEach(name => this.container.addEventListener(name, this.handleStartEvent as any, false))
-        events.end.forEach(name => this.container.addEventListener(name, this.handleEndEvent as any, false))
-        events.move.forEach(name => this.container.addEventListener(name, this.handleMoveEvent as any, false))
-
-        this.container.addEventListener('keydown', this.handleKeyDown as any)
-      })
+      this.backends = [
+        new MouseBackend(this, this.container),
+        new TouchBackend(this, this.container),
+        new KeyboardBackend(this, this.container)
+      ]
+      this.backends.forEach(b => b.attach())
     }
 
     componentWillUnmount() {
-      if (this.helper && this.helper.parentNode) {
-        this.helper.parentNode.removeChild(this.helper)
-      }
-      if (!this.container) {
-        return
-      }
-
-      events.start.forEach(name => this.container.removeEventListener(name, this.handleStartEvent as any))
-      events.end.forEach(name => this.container.removeEventListener(name, this.handleEndEvent as any))
-      events.move.forEach(name => this.container.removeEventListener(name, this.handleMoveEvent as any))
-
-      this.container.removeEventListener('keydown', this.handleKeyDown as any)
+      this.helper?.detach()
+      this.backends.forEach(b => b.detach())
+      this.backends = []
     }
 
-    handleStartEvent = (event: SortEvent) => {
-      const { distance, shouldCancelStart } = this.props
-
-      if ((!isTouchEvent(event) && event.button === 2) || shouldCancelStart!(event)) {
-        return
-      }
-
-      this.touched = true
-      this.position = getPosition(event)
-
-      const node = closest(event.target, isSortableNode)
-
-      if (node && this.nodeIsChild(node) && !this.state.sorting) {
-        const { useDragHandle } = this.props
-        const { index, collection, disabled } = node.sortableInfo
-
-        if (disabled) {
-          return
-        }
-
-        if (useDragHandle && !closest(event.target, isSortableHandle)) {
-          return
-        }
-
-        this.manager.active = { collection, index }
-
-        /*
-         * Fixes a bug in Firefox where the :active state of anchor tags
-         * prevent subsequent 'mousemove' events from being fired
-         * (see https://github.com/clauderic/react-ordering/issues/118)
-         */
-        if (!isTouchEvent(event) && event.target.tagName === NodeType.Anchor) {
-          event.preventDefault()
-        }
-
-        if (!distance) {
-          if (this.props.pressDelay === 0) {
-            this.handleSortStart(event)
-          } else {
-            this.pressTimer = setTimeout(() => this.handleSortStart(event), this.props.pressDelay)
-          }
-        }
-      }
-    }
-
-    nodeIsChild = (node: SortableNode) => {
+    nodeIsChild = (node: SortableElement) => {
       return node.sortableInfo.manager === this.manager
     }
 
-    handleMoveEvent = (event: SortMouseEvent | SortTouchEvent) => {
-      const { distance, pressThreshold } = this.props
-
-      if (!this.state.sorting && this.touched && !this._awaitingUpdateBeforeSortStart) {
-        const position = getPosition(event)
-        const delta = {
-          x: this.position!.x - position.x,
-          y: this.position!.y - position.y
-        }
-        const combinedDelta = Math.abs(delta.x) + Math.abs(delta.y)
-
-        if (!distance && (!pressThreshold || combinedDelta >= pressThreshold)) {
-          clearTimeout(this.cancelTimer)
-          this.cancelTimer = window.setTimeout(this.cancel, 0)
-        } else if (distance && combinedDelta >= distance && this.manager.isActive()) {
-          this.handleSortStart(event)
-        }
-      }
-    }
-
-    handleEndEvent = () => {
-      this.touched = false
-      this.cancel()
-    }
-
     cancel = () => {
-      const { distance } = this.props
-      const { sorting } = this.state
-
-      if (!sorting) {
-        if (!distance) {
-          clearTimeout(this.pressTimer)
-        }
-        this.manager.active = undefined
+      // If we
+      if (this.isSnapMotion) {
+        this.snap(this.index! - this.newIndex!)
+        this.drop()
       }
+      this.manager.active = undefined
     }
 
-    handleSortStart = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
-      const active = this.manager.getActive()
+    async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
+      const node = closest(element, isSortableElement)!
+      backend.lifted(node)
 
-      if (!active) return
-      const {
-        axis,
-        getHelperDimensions,
-        helperClass,
-        helperStyle,
-        hideSortableGhost,
-        updateBeforeSortStart,
-        onSortStart,
-        useWindowAsScrollContainer
-      } = this.props
-      const { node, collection } = active
-      const { isKeySorting } = this.manager
+      const { index } = node.sortableInfo
+      this.manager.active = { index }
+      this.currentMotion = backend.motion
+
+      const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
 
       if (typeof updateBeforeSortStart === 'function') {
         this._awaitingUpdateBeforeSortStart = true
 
         try {
-          const { index } = node.sortableInfo
-          await updateBeforeSortStart({ collection, index, node, isKeySorting }, event)
+          await updateBeforeSortStart({
+            from: index,
+            to: index,
+            motion: this.currentMotion!,
+            // FIXME, there's no helper yer
+            helper: this.helper?.element
+          })
         } finally {
           this._awaitingUpdateBeforeSortStart = false
         }
       }
 
+      this.helper = new Helper(node, {
+        directions: this.directions,
+        position,
+        lockToContainer: this.props.lockToContainerEdges,
+        motion: this.currentMotion,
+        container: this.container,
+        scrollContainer: this.scrollContainer,
+        helperClass: this.props.helperClass,
+        helperStyle: this.props.helperStyle
+      })
+      this.helper.attach(this.helperContainer)
+
       // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
-      const { index } = node.sortableInfo
       const margin = getElementMargin(node)
       const gridGap = getContainerGridGap(this.container)
       const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
-      const dimensions = getHelperDimensions!({ index, node, collection })
 
-      this.helperWidth = dimensions.width
-      this.helperHeight = dimensions.height
       this.marginOffset = {
         x: margin.left + margin.right + gridGap.x,
         y: Math.max(margin.top, margin.bottom, gridGap.y)
       }
-      const boundingClientRect = node.getBoundingClientRect()
       this.containerBoundingRect = containerBoundingRect
       this.index = index
       this.newIndex = index
 
       this.offsetEdge = getEdgeOffset(node, this.container)
-
-      if (isKeySorting) {
-        this.initialOffset = getPosition({
-          ...event,
-          pageX: boundingClientRect.left,
-          pageY: boundingClientRect.top
-        })
-      } else {
-        this.initialOffset = getPosition(event as SortMouseEvent | SortTouchEvent)
-      }
 
       this.initialScroll = {
         left: this.scrollContainer.scrollLeft,
@@ -292,23 +164,6 @@ export default function sortableContainer<P>(
         left: window.pageXOffset,
         top: window.pageYOffset
       }
-
-      this.helper = this.helperContainer.appendChild(cloneNode(node))
-
-      setInlineStyles(this.helper, {
-        boxSizing: 'border-box',
-        height: `${this.helperHeight}px`,
-        left: `${boundingClientRect.left - margin.left}px`,
-        pointerEvents: 'none',
-        position: 'fixed',
-        top: `${boundingClientRect.top - margin.top}px`,
-        width: `${this.helperWidth}px`
-      })
-
-      if (isKeySorting) {
-        this.helper.focus()
-      }
-
       if (hideSortableGhost) {
         this.sortableGhost = node
 
@@ -318,602 +173,26 @@ export default function sortableContainer<P>(
         })
       }
 
-      this.minTranslate = { x: 0, y: 0 }
-      this.maxTranslate = { x: 0, y: 0 }
-
-      if (isKeySorting) {
-        const {
-          top: containerTop,
-          left: containerLeft,
-          width: containerWidth,
-          height: containerHeight
-        } = useWindowAsScrollContainer
-          ? {
-              top: 0,
-              left: 0,
-              width: this.contentWindow.innerWidth,
-              height: this.contentWindow.innerHeight
-            }
-          : this.containerBoundingRect
-        const containerBottom = containerTop + containerHeight
-        const containerRight = containerLeft + containerWidth
-
-        if (this.axis.x) {
-          this.minTranslate.x = containerLeft - boundingClientRect.left
-          this.maxTranslate.x = containerRight - (boundingClientRect.left + this.helperWidth)
-        }
-
-        if (this.axis.y) {
-          this.minTranslate.y = containerTop - boundingClientRect.top
-          this.maxTranslate.y = containerBottom - (boundingClientRect.top + this.helperHeight)
-        }
-      } else {
-        if (this.axis.x) {
-          this.minTranslate.x =
-            (useWindowAsScrollContainer ? 0 : containerBoundingRect.left) -
-            boundingClientRect.left -
-            this.helperWidth! / 2
-          this.maxTranslate.x =
-            (useWindowAsScrollContainer
-              ? this.contentWindow.innerWidth
-              : containerBoundingRect.left + containerBoundingRect.width) -
-            boundingClientRect.left -
-            this.helperWidth! / 2
-        }
-
-        if (this.axis.y) {
-          this.minTranslate.y =
-            (useWindowAsScrollContainer ? 0 : containerBoundingRect.top) -
-            boundingClientRect.top -
-            this.helperHeight! / 2
-          this.maxTranslate.y =
-            (useWindowAsScrollContainer
-              ? this.contentWindow.innerHeight
-              : containerBoundingRect.top + containerBoundingRect.height) -
-            boundingClientRect.top -
-            this.helperHeight! / 2
-        }
-      }
-
-      if (helperClass) {
-        helperClass.split(' ').forEach(className => this.helper.classList.add(className))
-      }
-
-      if (helperStyle) {
-        setInlineStyles(this.helper, helperStyle)
-      }
-
-      this.listenerNode = isTouchEvent(event) ? node : this.contentWindow
-
-      if (isKeySorting) {
-        this.listenerNode.addEventListener('wheel', this.handleKeyEnd as any, true)
-        this.listenerNode.addEventListener('mousedown', this.handleKeyEnd as any, true)
-        this.listenerNode.addEventListener('keydown', this.handleKeyDown as any)
-      } else {
-        events.move.forEach(eventName =>
-          this.listenerNode!.addEventListener(eventName, this.handleSortMove as any, false)
-        )
-        events.end.forEach(eventName =>
-          this.listenerNode!.addEventListener(eventName, this.handleSortEnd as any, false)
-        )
-      }
-
       this.setState({
         sorting: true,
         sortingIndex: index
       })
 
-      if (onSortStart) {
-        onSortStart(
-          {
-            node,
-            index,
-            collection,
-            isKeySorting,
-            nodes: this.manager.getOrderedRefs().map(r => r.node),
-            helper: this.helper
-          },
-          event
-        )
-      }
-
-      if (isKeySorting) {
-        // Readjust positioning in case re-rendering occurs onSortStart
-        this.keyMove(0)
-      }
+      this.props.onSortStart?.({
+        from: this.index!,
+        to: this.newIndex ?? this.index!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
     }
 
-    handleSortMove = (event: SortMouseEvent | SortTouchEvent, ignoreTransition: boolean = false) => {
-      const { onSortMove } = this.props
-
-      // Prevent scrolling on mobile
-      if (typeof event.preventDefault === 'function') {
-        event.preventDefault()
-      }
-
-      this.updateHelperPosition(event, ignoreTransition)
+    move(position: { x: number; y: number }) {
+      this.helper.move(position)
       this.animateNodes()
       this.autoscroll()
-
-      if (onSortMove) {
-        onSortMove(event)
-      }
     }
 
-    handleSortEnd = async (event: SortTouchEvent | SortMouseEvent | SortKeyboardEvent) => {
-      const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
-      const {
-        active: { collection },
-        isKeySorting
-      } = this.manager
-      const nodes = this.manager.getOrderedRefs()
-
-      // Remove the event listeners if the node is still in the DOM
-      if (this.listenerNode) {
-        if (isKeySorting) {
-          this.listenerNode.removeEventListener('wheel', this.handleKeyEnd as any, true)
-          this.listenerNode.removeEventListener('mousedown', this.handleKeyEnd as any, true)
-          this.listenerNode.removeEventListener('keydown', this.handleKeyDown as any)
-        } else {
-          events.move.forEach(eventName =>
-            this.listenerNode!.removeEventListener(eventName, this.handleSortMove as any)
-          )
-          events.end.forEach(eventName => this.listenerNode!.removeEventListener(eventName, this.handleSortEnd as any))
-        }
-      }
-
-      if (dropAnimationDuration && !isKeySorting) {
-        await this.dropAnimation()
-      }
-
-      // Remove the helper from the DOM
-      this.helper.parentNode?.removeChild(this.helper)
-
-      if (hideSortableGhost && this.sortableGhost) {
-        setInlineStyles(this.sortableGhost, {
-          opacity: '',
-          visibility: ''
-        })
-      }
-
-      for (let i = 0, len = nodes.length; i < len; i++) {
-        const node = nodes[i]
-        const el = node.node
-
-        // Clear the cached offset/boundingClientRect
-        node.edgeOffset = undefined
-        node.boundingClientRect = undefined
-
-        // Remove the transforms / transitions
-        setTranslate3d(el, null)
-        setTransitionDuration(el, null)
-        node.translate = undefined
-      }
-
-      // Stop autoscroll
-      this.autoScroller.clear()
-
-      // Update manager state
-      this.manager.active = undefined
-      this.manager.isKeySorting = false
-
-      this.setState({
-        sorting: false,
-        sortingIndex: null
-      })
-
-      if (typeof onSortEnd === 'function') {
-        onSortEnd(
-          {
-            collection,
-            newIndex: this.newIndex!,
-            oldIndex: this.index!,
-            isKeySorting,
-            nodes: nodes.map(r => r.node)
-          },
-          event
-        )
-      }
-
-      this.touched = false
-    }
-
-    updateHelperPosition(event: SortEvent, ignoreTransition: boolean) {
-      const {
-        lockAxis,
-        lockOffset,
-        lockToContainerEdges,
-        outOfTheWayAnimationDuration,
-        keyboardSortingTransitionDuration = outOfTheWayAnimationDuration
-      } = this.props
-      const { isKeySorting } = this.manager
-
-      const offset = getPosition(event)
-      const translate = {
-        x: offset.x - this.initialOffset!.x,
-        y: offset.y - this.initialOffset!.y
-      }
-
-      // Adjust for window scroll
-      translate.y -= window.pageYOffset - this.initialWindowScroll!.top
-      translate.x -= window.pageXOffset - this.initialWindowScroll!.left
-
-      this.translate = translate
-
-      if (lockToContainerEdges) {
-        const [minLockOffset, maxLockOffset] = getLockPixelOffsets({
-          height: this.helperHeight,
-          lockOffset,
-          width: this.helperWidth
-        })
-        const minOffset = {
-          x: this.helperWidth! / 2 - minLockOffset.x,
-          y: this.helperHeight! / 2 - minLockOffset.y
-        }
-        const maxOffset = {
-          x: this.helperWidth! / 2 - maxLockOffset.x,
-          y: this.helperHeight! / 2 - maxLockOffset.y
-        }
-
-        translate.x = limit(this.minTranslate!.x + minOffset.x, this.maxTranslate!.x - maxOffset.x, translate.x)
-        translate.y = limit(this.minTranslate!.y + minOffset.y, this.maxTranslate!.y - maxOffset.y, translate.y)
-      }
-
-      if (lockAxis === 'x') {
-        translate.y = 0
-      } else if (lockAxis === 'y') {
-        translate.x = 0
-      }
-
-      if (isKeySorting && keyboardSortingTransitionDuration && !ignoreTransition) {
-        setTransitionDuration(this.helper, keyboardSortingTransitionDuration)
-      }
-
-      setTranslate3d(this.helper, translate)
-    }
-
-    animateNodes() {
-      const {
-        outOfTheWayAnimationDuration,
-        outOfTheWayAnimationEasing,
-        hideSortableGhost,
-        onSortOver,
-        dropAnimationDuration,
-        dropAnimationEasing
-      } = this.props
-      const { containerScrollDelta, windowScrollDelta } = this
-      const nodes = this.manager.getOrderedRefs()
-      const sortingOffset = {
-        left: this.offsetEdge!.left + this.translate!.x + containerScrollDelta.left,
-        top: this.offsetEdge!.top + this.translate!.y + containerScrollDelta.top
-      }
-      const { isKeySorting } = this.manager
-
-      const prevIndex = this.newIndex!
-      this.newIndex = undefined
-
-      for (let i = 0, len = nodes.length; i < len; i++) {
-        const { node } = nodes[i]
-        const { index } = node.sortableInfo
-        const width = node.offsetWidth
-        const height = node.offsetHeight
-        const offset = {
-          height: this.helperHeight! > height ? height / 2 : this.helperHeight! / 2,
-          width: this.helperWidth! > width ? width / 2 : this.helperWidth! / 2
-        }
-
-        // For keyboard sorting, we want user input to dictate the position of the nodes
-        const mustShiftBackward = isKeySorting && index > this.index! && index <= prevIndex
-        const mustShiftForward = isKeySorting && index < this.index! && index >= prevIndex
-
-        const translate = { x: 0, y: 0 }
-        let { edgeOffset } = nodes[i]
-
-        // If we haven't cached the node's offsetTop / offsetLeft value
-        if (!edgeOffset) {
-          edgeOffset = getEdgeOffset(node, this.container)
-          nodes[i].edgeOffset = edgeOffset
-          // While we're at it, cache the boundingClientRect, used during keyboard sorting
-          if (isKeySorting) {
-            nodes[i].boundingClientRect = getScrollAdjustedBoundingClientRect(node, containerScrollDelta)
-          }
-        }
-
-        // Get a reference to the next and previous node
-        const nextNode = i < nodes.length - 1 && nodes[i + 1]
-        const prevNode = i > 0 && nodes[i - 1]
-
-        // Also cache the next node's edge offset if needed.
-        // We need this for calculating the animation in a grid setup
-        if (nextNode && !nextNode.edgeOffset) {
-          nextNode.edgeOffset = getEdgeOffset(nextNode.node, this.container)
-          if (isKeySorting) {
-            nextNode.boundingClientRect = getScrollAdjustedBoundingClientRect(nextNode.node, containerScrollDelta)
-          }
-        }
-
-        // If the node is the one we're currently animating, skip it
-        if (index === this.index) {
-          if (hideSortableGhost) {
-            /*
-             * With windowing libraries such as `react-virtualized`, the sortableGhost
-             * node may change while scrolling down and then back up (or vice-versa),
-             * so we need to update the reference to the new node just to be safe.
-             */
-            this.sortableGhost = node
-            setInlineStyles(node, { opacity: 0, visibility: 'hidden' })
-          }
-          continue
-        }
-
-        if (outOfTheWayAnimationDuration) {
-          setTransition(node, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
-          setTransition(node, `transform ${dropAnimationDuration}ms ${dropAnimationEasing}`)
-        }
-
-        if (this.axis.x) {
-          if (this.axis.y) {
-            // Calculations for a grid setup
-            if (
-              mustShiftForward ||
-              (index < this.index! &&
-                ((sortingOffset.left + windowScrollDelta.left - offset.width <= edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height <= edgeOffset.top))
-            ) {
-              // If the current node is to the left on the same row, or above the node that's being dragged
-              // then move it to the right
-              translate.x = this.helperWidth! + this.marginOffset!.x
-              if (edgeOffset.left + translate.x > this.containerBoundingRect!.width - offset.width) {
-                // If it moves passed the right bounds, then animate it to the first position of the next row.
-                // We just use the offset of the next node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (nextNode) {
-                  translate.x = nextNode.edgeOffset!.left - edgeOffset.left
-                  translate.y = nextNode.edgeOffset!.top - edgeOffset.top
-                }
-              }
-              if (this.newIndex === undefined) {
-                this.newIndex = index
-              }
-            } else if (
-              mustShiftBackward ||
-              (index > this.index! &&
-                ((sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top + height))
-            ) {
-              // If the current node is to the right on the same row, or below the node that's being dragged
-              // then move it to the left
-              translate.x = -(this.helperWidth! + this.marginOffset!.x)
-              if (edgeOffset.left + translate.x < this.containerBoundingRect!.left + offset.width) {
-                // If it moves passed the left bounds, then animate it to the last position of the previous row.
-                // We just use the offset of the previous node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (prevNode) {
-                  translate.x = prevNode.edgeOffset!.left - edgeOffset.left
-                  translate.y = prevNode.edgeOffset!.top - edgeOffset.top
-                }
-              }
-              this.newIndex = index
-            }
-          } else {
-            if (
-              mustShiftBackward ||
-              (index > this.index! && sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left)
-            ) {
-              translate.x = -(this.helperWidth! + this.marginOffset!.x)
-              this.newIndex = index
-            } else if (
-              mustShiftForward ||
-              (index < this.index! && sortingOffset.left + windowScrollDelta.left <= edgeOffset.left + offset.width)
-            ) {
-              translate.x = this.helperWidth! + this.marginOffset!.x
-
-              if (this.newIndex == undefined) {
-                this.newIndex = index
-              }
-            }
-          }
-        } else if (this.axis!.y) {
-          if (
-            mustShiftBackward ||
-            (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
-          ) {
-            translate.y = -(this.helperHeight! + this.marginOffset!.y)
-            this.newIndex = index
-          } else if (
-            mustShiftForward ||
-            (index < this.index! && sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height)
-          ) {
-            translate.y = this.helperHeight! + this.marginOffset!.y
-            if (this.newIndex == undefined) {
-              this.newIndex = index
-            }
-          }
-        }
-
-        setTranslate3d(node, translate)
-        nodes[i].translate = translate
-      }
-
-      if (this.newIndex == undefined) {
-        this.newIndex = this.index
-      }
-
-      if (isKeySorting) {
-        // If keyboard sorting, we want the user input to dictate index, not location of the helper
-        this.newIndex = prevIndex
-      }
-
-      const oldIndex = isKeySorting ? this.prevIndex : prevIndex
-      if (onSortOver && this.newIndex !== oldIndex) {
-        onSortOver({
-          collection: this.manager.active!.collection,
-          index: this.index!,
-          newIndex: this.newIndex!,
-          oldIndex: oldIndex!,
-          isKeySorting,
-          nodes: nodes.map(r => r.node),
-          helper: this.helper
-        })
-      }
-    }
-
-    dropAnimation() {
-      return new Promise(resolve => {
-        const { dropAnimationDuration, dropAnimationEasing } = this.props
-        const { containerScrollDelta, windowScrollDelta } = this
-        const oldOffset = this.offsetEdge!
-        const { edgeOffset, node: newNode } = this.manager.nodeAtIndex(this.newIndex)!
-
-        const newOffset = edgeOffset || getEdgeOffset(newNode, this.container)
-
-        const deltaX =
-          this.newIndex! > this.index!
-            ? newOffset.left - this.helperWidth! + newNode.offsetWidth - oldOffset.left
-            : newOffset.left - oldOffset.left
-        const deltaY =
-          this.newIndex! > this.index!
-            ? newOffset.top - this.helperHeight! + newNode.offsetHeight - oldOffset.top
-            : newOffset.top - oldOffset.top
-
-        setTranslate3d(this.helper, {
-          x: deltaX - containerScrollDelta.left - windowScrollDelta.left,
-          y: deltaY - containerScrollDelta.top - windowScrollDelta.top
-        })
-        setTransition(this.helper, `transform ${dropAnimationDuration}ms ${dropAnimationEasing}`)
-
-        this.helper.addEventListener('transitionend', event => {
-          // We only want to know when the transform transition ends, there
-          // could be other animated properties, such as opacity
-          if (event.propertyName !== 'transform') {
-            return
-          }
-
-          resolve()
-        })
-      })
-    }
-
-    autoscroll = () => {
-      const { disableAutoscroll } = this.props
-      const { isKeySorting } = this.manager
-
-      if (disableAutoscroll) {
-        this.autoScroller.clear()
-        return
-      }
-
-      if (isKeySorting) {
-        const translate = { ...this.translate! }
-        let scrollX = 0
-        let scrollY = 0
-
-        if (this.axis!.x) {
-          translate.x = Math.min(this.maxTranslate.x, Math.max(this.minTranslate.x, this.translate!.x))
-          scrollX = this.translate!.x - translate.x
-        }
-
-        if (this.axis!.y) {
-          translate.y = Math.min(this.maxTranslate.y, Math.max(this.minTranslate.y, this.translate!.y))
-          scrollY = this.translate!.y - translate.y
-        }
-
-        this.translate = translate
-        setTranslate3d(this.helper, this.translate)
-        this.scrollContainer.scrollLeft += scrollX
-        this.scrollContainer.scrollTop += scrollY
-
-        return
-      }
-
-      this.autoScroller.update({
-        height: this.helperHeight,
-        maxTranslate: this.maxTranslate,
-        minTranslate: this.minTranslate,
-        translate: this.translate,
-        width: this.helperWidth
-      })
-    }
-
-    onAutoScroll = (offset: { left: number; top: number }) => {
-      this.translate!.x += offset.left
-      this.translate!.y += offset.top
-
-      this.animateNodes()
-    }
-
-    getWrappedInstance() {
-      invariant(
-        config.withRef,
-        'To access the wrapped instance, you need to pass in {withRef: true} as the second argument of the SortableContainer() call'
-      )
-
-      return this.refs.wrappedInstance
-    }
-
-    getContainer() {
-      const { getContainer } = this.props
-
-      if (typeof getContainer !== 'function') {
-        return findDOMNode(this) as HTMLElement
-      }
-
-      return getContainer(config.withRef ? this.getWrappedInstance() : undefined)
-    }
-
-    handleKeyDown = (event: SortKeyboardEvent) => {
-      const { keyCode } = event
-      const { shouldCancelStart, keyCodes: customKeyCodes = {} } = this.props
-
-      const keyCodes = {
-        ...defaultKeyCodes,
-        ...customKeyCodes
-      }
-
-      if (
-        (this.manager.active && !this.manager.isKeySorting) ||
-        (!this.manager.active &&
-          (!keyCodes.lift.includes(keyCode) || shouldCancelStart!(event) || !this.isValidSortingTarget(event)))
-      ) {
-        return
-      }
-
-      event.stopPropagation()
-      event.preventDefault()
-
-      if (keyCodes.lift.includes(keyCode) && !this.manager.active) {
-        this.keyLift(event)
-      } else if (keyCodes.drop.includes(keyCode) && this.manager.active) {
-        this.keyDrop(event)
-      } else if (keyCodes.cancel.includes(keyCode)) {
-        this.newIndex = this.manager.active!.index
-        this.keyDrop(event)
-      } else if (keyCodes.up.includes(keyCode)) {
-        this.keyMove(-1)
-      } else if (keyCodes.down.includes(keyCode)) {
-        this.keyMove(1)
-      }
-    }
-
-    keyLift = (event: SortKeyboardEvent) => {
-      const { target } = event
-      const node = closest(target, isSortableNode)!
-      const { index, collection } = node.sortableInfo
-
-      this.initialFocusedNode = target
-
-      this.manager.isKeySorting = true
-      this.manager.active = {
-        index,
-        collection
-      }
-
-      this.handleSortStart(event)
-    }
-
-    keyMove = (shift: number) => {
+    snap(shift: number) {
       const nodes = this.manager.getOrderedRefs()
       const { index: lastIndex } = nodes[nodes.length - 1].node.sortableInfo
       const newIndex = this.newIndex! + shift
@@ -942,49 +221,302 @@ export default function sortableContainer<P>(
 
       const shouldAdjustForSize = prevIndex < newIndex
       const sizeAdjustment = {
-        x: shouldAdjustForSize && this.axis.x ? targetNode.offsetWidth - this.helperWidth! : 0,
-        y: shouldAdjustForSize && this.axis.y ? targetNode.offsetHeight - this.helperHeight! : 0
+        x: shouldAdjustForSize && this.directions.horizontal ? targetNode.offsetWidth - this.helper.width : 0,
+        y: shouldAdjustForSize && this.directions.vertical ? targetNode.offsetHeight - this.helper.height : 0
       }
 
-      this.handleSortMove(
-        {
-          pageX: targetPosition.left + sizeAdjustment.x,
-          pageY: targetPosition.top + sizeAdjustment.y
-        },
-        shift === 0
-      )
+      this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
     }
 
-    keyDrop = (event: SortKeyboardEvent) => {
-      this.handleSortEnd(event)
+    async drop() {
+      const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
+      const nodes = this.manager.getOrderedRefs()
 
-      if (this.initialFocusedNode) {
-        this.initialFocusedNode.focus()
+      if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
+        const { edgeOffset, node: newNode } = this.manager.nodeAtIndex(this.newIndex)!
+        const newOffset = edgeOffset || getEdgeOffset(newNode, this.container)
+        await this.helper.drop(
+          newOffset,
+          newNode.offsetWidth,
+          newNode.offsetHeight,
+          this.newIndex! > this.index! ? 'forward' : 'backward'
+        )
       }
-    }
 
-    handleKeyEnd = (event: SortKeyboardEvent) => {
-      if (this.manager.active) {
-        this.keyDrop(event)
+      // Remove the helper from the DOM
+      this.helper.detach()
+
+      if (hideSortableGhost && this.sortableGhost) {
+        setInlineStyles(this.sortableGhost, {
+          opacity: '',
+          visibility: ''
+        })
       }
+
+      for (let i = 0, len = nodes.length; i < len; i++) {
+        const node = nodes[i]
+        const el = node.node
+
+        // Clear the cached offset/boundingClientRect
+        node.edgeOffset = undefined
+        node.boundingClientRect = undefined
+
+        // Remove the transforms / transitions
+        setTranslate3d(el, null)
+        setTransitionDuration(el, null)
+        node.translate = undefined
+      }
+
+      // Stop autoscroll
+      this.autoScroller.clear()
+
+      // Update manager state
+      this.manager.active = undefined
+
+      this.setState({
+        sorting: false,
+        sortingIndex: null
+      })
+
+      this.props.onSortEnd({
+        from: this.index!,
+        to: this.newIndex ?? this.index!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
     }
 
-    isValidSortingTarget = (event: SortMouseEvent | SortTouchEvent | SortKeyboardEvent) => {
-      const { useDragHandle } = this.props
-      const { target } = event
-      const node = closest(target, isSortableNode)
+    animateNodes = () => {
+      const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing, hideSortableGhost, onSortOver } = this.props
+      const { containerScrollDelta, windowScrollDelta } = this
+      const nodes = this.manager.getOrderedRefs()
+      const sortingOffset = {
+        left: this.offsetEdge!.left + this.helper.translate.x + containerScrollDelta.left,
+        top: this.offsetEdge!.top + this.helper.translate.y + containerScrollDelta.top
+      }
 
-      return node && !node.sortableInfo.disabled && (useDragHandle ? isSortableHandle(target) : isSortableNode(target))
+      const prevIndex = this.newIndex!
+      this.newIndex = undefined
+
+      for (let i = 0, len = nodes.length; i < len; i++) {
+        const { node } = nodes[i]
+        const { index } = node.sortableInfo
+        const width = node.offsetWidth
+        const height = node.offsetHeight
+        const offset = {
+          height: this.helper.height > height ? height / 2 : this.helper.height / 2,
+          width: this.helper.width > width ? width / 2 : this.helper.width / 2
+        }
+
+        // For keyboard sorting, we want user input to dictate the position of the nodes
+        const mustShiftBackward = this.isSnapMotion && index > this.index! && index <= prevIndex
+        const mustShiftForward = this.isSnapMotion && index < this.index! && index >= prevIndex
+
+        const translate = { x: 0, y: 0 }
+        let { edgeOffset } = nodes[i]
+
+        // If we haven't cached the node's offsetTop / offsetLeft value
+        if (!edgeOffset) {
+          edgeOffset = getEdgeOffset(node, this.container)
+          nodes[i].edgeOffset = edgeOffset
+          // While we're at it, cache the boundingClientRect, used during keyboard sorting
+          if (this.isSnapMotion) {
+            nodes[i].boundingClientRect = getScrollAdjustedBoundingClientRect(node, containerScrollDelta)
+          }
+        }
+
+        // Get a reference to the next and previous node
+        const nextNode = i < nodes.length - 1 && nodes[i + 1]
+        const prevNode = i > 0 && nodes[i - 1]
+
+        // Also cache the next node's edge offset if needed.
+        // We need this for calculating the animation in a grid setup
+        if (nextNode && !nextNode.edgeOffset) {
+          nextNode.edgeOffset = getEdgeOffset(nextNode.node, this.container)
+          if (this.isSnapMotion) {
+            nextNode.boundingClientRect = getScrollAdjustedBoundingClientRect(nextNode.node, containerScrollDelta)
+          }
+        }
+
+        // If the node is the one we're currently animating, skip it
+        if (index === this.index) {
+          if (hideSortableGhost) {
+            /*
+             * With windowing libraries such as `react-virtualized`, the sortableGhost
+             * node may change while scrolling down and then back up (or vice-versa),
+             * so we need to update the reference to the new node just to be safe.
+             */
+            this.sortableGhost = node
+            setInlineStyles(node, { opacity: 0, visibility: 'hidden' })
+          }
+          continue
+        }
+
+        if (outOfTheWayAnimationDuration) {
+          setTransition(node, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
+        }
+
+        if (this.directions.horizontal) {
+          if (this.directions.vertical) {
+            // Calculations for a grid setup
+            if (
+              mustShiftForward ||
+              (index < this.index! &&
+                ((sortingOffset.left + windowScrollDelta.left - offset.width <= edgeOffset.left &&
+                  sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height) ||
+                  sortingOffset.top + windowScrollDelta.top + offset.height <= edgeOffset.top))
+            ) {
+              // If the current node is to the left on the same row, or above the node that's being dragged
+              // then move it to the right
+              translate.x = this.helper.width + this.marginOffset!.x
+              if (edgeOffset.left + translate.x > this.containerBoundingRect!.width - offset.width) {
+                // If it moves passed the right bounds, then animate it to the first position of the next row.
+                // We just use the offset of the next node to calculate where to move, because that node's original position
+                // is exactly where we want to go
+                if (nextNode) {
+                  translate.x = nextNode.edgeOffset!.left - edgeOffset.left
+                  translate.y = nextNode.edgeOffset!.top - edgeOffset.top
+                }
+              }
+              if (this.newIndex === undefined) {
+                this.newIndex = index
+              }
+            } else if (
+              mustShiftBackward ||
+              (index > this.index! &&
+                ((sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left &&
+                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top) ||
+                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top + height))
+            ) {
+              // If the current node is to the right on the same row, or below the node that's being dragged
+              // then move it to the left
+              translate.x = -(this.helper.width + this.marginOffset!.x)
+              if (edgeOffset.left + translate.x < this.containerBoundingRect!.left + offset.width) {
+                // If it moves passed the left bounds, then animate it to the last position of the previous row.
+                // We just use the offset of the previous node to calculate where to move, because that node's original position
+                // is exactly where we want to go
+                if (prevNode) {
+                  translate.x = prevNode.edgeOffset!.left - edgeOffset.left
+                  translate.y = prevNode.edgeOffset!.top - edgeOffset.top
+                }
+              }
+              this.newIndex = index
+            }
+          } else {
+            if (
+              mustShiftBackward ||
+              (index > this.index! && sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left)
+            ) {
+              translate.x = -(this.helper.width + this.marginOffset!.x)
+              this.newIndex = index
+            } else if (
+              mustShiftForward ||
+              (index < this.index! && sortingOffset.left + windowScrollDelta.left <= edgeOffset.left + offset.width)
+            ) {
+              translate.x = this.helper.width + this.marginOffset!.x
+
+              if (this.newIndex == undefined) {
+                this.newIndex = index
+              }
+            }
+          }
+        } else if (this.directions.vertical) {
+          if (
+            mustShiftBackward ||
+            (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
+          ) {
+            translate.y = -(this.helper.height + this.marginOffset!.y)
+            this.newIndex = index
+          } else if (
+            mustShiftForward ||
+            (index < this.index! && sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height)
+          ) {
+            translate.y = this.helper.height + this.marginOffset!.y
+            if (this.newIndex == undefined) {
+              this.newIndex = index
+            }
+          }
+        }
+
+        setTranslate3d(node, translate)
+        nodes[i].translate = translate
+      }
+
+      if (this.newIndex == undefined) {
+        this.newIndex = this.index
+      }
+
+      if (this.isSnapMotion) {
+        // If keyboard sorting, we want the user input to dictate index, not location of the helper
+        this.newIndex = prevIndex
+      }
+
+      const oldIndex = this.isSnapMotion ? this.prevIndex : prevIndex
+
+      if (this.newIndex === oldIndex) return
+      this.props.onSortOver?.({
+        from: this.index!,
+        to: oldIndex!,
+        motion: this.currentMotion!,
+        helper: this.helper.element
+      })
+    }
+
+    autoscroll = () => {
+      const { disableAutoscroll } = this.props
+
+      if (disableAutoscroll) {
+        this.autoScroller.clear()
+        return
+      }
+
+      if (this.isSnapMotion) {
+        const translate = { ...this.helper.translate }
+        let scrollX = 0
+        let scrollY = 0
+
+        if (this.directions.horizontal) {
+          translate.x = Math.min(
+            this.helper.maxTranslate.x,
+            Math.max(this.helper.minTranslate.x, this.helper.translate.x)
+          )
+          scrollX = this.helper.translate.x - translate.x
+        }
+
+        if (this.directions.vertical) {
+          translate.y = Math.min(
+            this.helper.maxTranslate.y,
+            Math.max(this.helper.minTranslate.y, this.helper.translate.y)
+          )
+          scrollY = this.helper.translate.y - translate.y
+        }
+
+        this.helper.translate = translate
+        setTranslate3d(this.helper.element, this.helper.translate)
+        this.scrollContainer.scrollLeft += scrollX
+        this.scrollContainer.scrollTop += scrollY
+
+        return
+      }
+
+      this.autoScroller.update({
+        height: this.helper.height,
+        maxTranslate: this.helper.maxTranslate,
+        minTranslate: this.helper.minTranslate,
+        translate: this.helper.translate,
+        width: this.helper.width
+      })
+    }
+
+    getContainer() {
+      console.log(findDOMNode(this))
+      return findDOMNode(this) as SortableContainerElement
     }
 
     render() {
       const ref = config.withRef ? 'wrappedInstance' : null
 
-      return (
-        <ManagerContext.Provider value={{ manager: this.manager }}>
-          <WrappedComponent ref={ref} {...omit(this.props, orderingProps)} />
-        </ManagerContext.Provider>
-      )
+      return <WrappedComponent ref={ref} {...omit(this.props, orderingProps)} />
     }
 
     get helperContainer() {
@@ -994,16 +526,10 @@ export default function sortableContainer<P>(
         return helperContainer()
       }
 
-      return helperContainer || this.document.body
+      return helperContainer || document.body
     }
 
     get containerScrollDelta() {
-      const { useWindowAsScrollContainer } = this.props
-
-      if (useWindowAsScrollContainer) {
-        return { left: 0, top: 0 }
-      }
-
       return {
         left: this.scrollContainer.scrollLeft - this.initialScroll!.left,
         top: this.scrollContainer.scrollTop - this.initialScroll!.top
@@ -1012,9 +538,38 @@ export default function sortableContainer<P>(
 
     get windowScrollDelta() {
       return {
-        left: this.contentWindow.pageXOffset - this.initialWindowScroll!.left,
-        top: this.contentWindow.pageYOffset - this.initialWindowScroll!.top
+        left: window.pageXOffset - this.initialWindowScroll!.left,
+        top: window.pageYOffset - this.initialWindowScroll!.top
       }
+    }
+
+    get isSorting() {
+      return this.state.sorting
+    }
+
+    get pressDelay() {
+      return {
+        time: this.props.pressDelay!,
+        distanceThreshold: this.props.pressThreshold!
+      }
+    }
+
+    get moveDelay() {
+      return this.props.distance
+    }
+
+    canLift(element: HTMLElement) {
+      if (this.props.shouldCancelStart!(element)) return false
+      if (this.state.sorting) return false
+
+      const sortableElement = closest(element, isSortableElement)
+      if (!sortableElement || !this.nodeIsChild(sortableElement)) return false
+      if (sortableElement.sortableInfo.disabled) return false
+
+      if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
+      return true
     }
   }
 }
+
+export const isSortableContainerElement = (el: any): el is SortableContainerElement => !!el[CONTEXT_KEY]

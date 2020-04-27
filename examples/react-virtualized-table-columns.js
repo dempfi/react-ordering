@@ -45,7 +45,7 @@ class TableWithSortableColumns extends Component {
   }
 
   renderHeaderRow = params => {
-    return <SortableHeaderRowRenderer {...params} axis='x' lockAxis='x' onSortEnd={this.onSortEnd} />
+    return <SortableHeaderRowRenderer {...params} axis='x' onSortEnd={this.onSortEnd} />
   }
 
   render() {
