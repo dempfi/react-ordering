@@ -420,7 +420,7 @@ storiesOf('General | Layout / Vertical list', module)
   .add('Basic setup', () => {
     return (
       <div className={style.root}>
-        <ListWrapper component={SortableList} items={getItems(40, 59)} helperClass={style.stylizedHelper} />
+        <ListWrapper component={SortableList} items={getItems(50, 59)} helperClass={style.stylizedHelper} />
       </div>
     )
   })

@@ -105,7 +105,7 @@ export default function sortableContainer<P>(
       backend.lifted(node)
 
       const { index } = node.sortableInfo
-      this.manager.active = { index }
+      this.manager.active = { index, currentIndex: index }
       this.currentMotion = backend.motion
 
       const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
@@ -232,7 +232,7 @@ export default function sortableContainer<P>(
       const nodes = this.manager.getOrderedRefs()
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex - 0.5 : this.newIndex! - 1.5
+        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex! - 0.5 : this.newIndex! - 1.5
         await this.helper.drop(this.manager.nodeAtIndex(dropAfterIndex)?.element!)
       }
 
@@ -287,7 +287,7 @@ export default function sortableContainer<P>(
 
         const { height, y } = element.getBoundingClientRect()
 
-        const top = position?.y ?? y
+        const top = y
         const bottom = top + height
 
         if (this.directions.vertical) {
@@ -313,11 +313,19 @@ export default function sortableContainer<P>(
 
       sortedNodes.forEach((item, index) => {
         const height = this.helper.height + this.marginOffset!.y
-        const translate = height * -(item.element.sortableInfo.index - index)
-        const { x, y } = item.element.getBoundingClientRect()
-        item.position = { x, y: y + translate }
 
-        setTranslate3d(item.element, { x: 0, y: translate })
+        const translate = {
+          x: 0,
+          y: height * -(item.element.sortableInfo.index - index)
+        }
+
+        if (item.translate?.y === translate.y) return
+
+        const { x, y } = item.element.getBoundingClientRect()
+        item.position = { x, y: y + translate.y }
+        item.translate = translate
+
+        setTranslate3d(item.element, translate)
         // setTransition(item.element, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
       })
 
