@@ -54,7 +54,7 @@ export function setInlineStyles(node, styles) {
   })
 }
 
-export function setTranslate3d(node, translate) {
+export function setTranslate3d(node: HTMLElement, translate) {
   node.style[`${vendorPrefix}Transform`] = translate == null ? '' : `translate3d(${translate.x}px,${translate.y}px,0)`
 }
 
@@ -107,7 +107,7 @@ export function getScrollAdjustedBoundingClientRect(node: HTMLElement, scrollDel
   }
 }
 
-export function getEdgeOffset(
+export function offsetFromParent(
   node: HTMLElement,
   parent?: HTMLElement,
   offset = { left: 0, top: 0 }
@@ -126,7 +126,7 @@ export function getEdgeOffset(
     return nodeOffset
   }
 
-  return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset)
+  return offsetFromParent(node.parentNode as HTMLElement, parent, nodeOffset)
 }
 
 export const isScrollableElement = (el: HTMLElement): el is HTMLElement => {

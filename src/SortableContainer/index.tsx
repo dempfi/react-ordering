@@ -1,13 +1,12 @@
 import React from 'react'
 import { findDOMNode } from 'react-dom'
 
-import { isSortableHandleElement } from '../handle'
+import { isSortableHandleElement } from '../use-handle'
 import { Context } from '../context'
 
 import {
   closest,
   getContainerGridGap,
-  getEdgeOffset,
   getElementMargin,
   omit,
   provideDisplayName,
@@ -24,9 +23,9 @@ import { AutoScroller } from '../auto-scroller'
 import { defaultProps, orderingProps } from './props'
 
 import { WrappedComponent, Config, SortableContainerProps } from '../types'
-import { isSortableElement, SortableElement } from '../element'
+import { isSortableElement, SortableElement } from '../use-element'
 import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
-import { Helper } from '../helper'
+import { Draggable } from '../draggable'
 import { CONTEXT_KEY } from '../constants'
 
 type SortableContainerElement = HTMLElement & { [CONTEXT_KEY]: Context }
@@ -43,20 +42,18 @@ export default function sortableContainer<P>(
     _awaitingUpdateBeforeSortStart?: boolean
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     initialScroll?: { left: number; top: number }
-    initialWindowScroll?: { left: number; top: number }
     newIndex?: number
     marginOffset?: { x: number; y: number }
-    containerBoundingRect?: DOMRect
     index?: number
-    offsetEdge?: { left: number; top: number }
     sortableGhost?: SortableElement
     prevIndex?: number
     backends: Backend[] = []
-    helper!: Helper
+    helper!: Draggable
     currentMotion?: Motion
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
     static defaultProps = defaultProps
+    private lastPosition = { x: Infinity, y: Infinity }
 
     get directions() {
       if (!this.props.axis) return { horizontal: false, vertical: true }
@@ -129,7 +126,7 @@ export default function sortableContainer<P>(
         }
       }
 
-      this.helper = new Helper(node, {
+      this.helper = new Draggable(node, {
         directions: this.directions,
         position,
         lockToContainer: this.props.lockToContainerEdges,
@@ -144,32 +141,25 @@ export default function sortableContainer<P>(
       // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
       const margin = getElementMargin(node)
       const gridGap = getContainerGridGap(this.container)
-      const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
 
       this.marginOffset = {
         x: margin.left + margin.right + gridGap.x,
         y: Math.max(margin.top, margin.bottom, gridGap.y)
       }
-      this.containerBoundingRect = containerBoundingRect
+
       this.index = index
       this.newIndex = index
-
-      this.offsetEdge = getEdgeOffset(node, this.container)
 
       this.initialScroll = {
         left: this.scrollContainer.scrollLeft,
         top: this.scrollContainer.scrollTop
       }
-      this.initialWindowScroll = {
-        left: window.pageXOffset,
-        top: window.pageYOffset
-      }
       if (hideSortableGhost) {
         this.sortableGhost = node
 
         setInlineStyles(node, {
-          opacity: 0,
-          visibility: 'hidden'
+          opacity: 0.5
+          // visibility: 'hidden'
         })
       }
 
@@ -187,6 +177,16 @@ export default function sortableContainer<P>(
     }
 
     move(position: { x: number; y: number }) {
+      if (this.directions.horizontal && this.directions.vertical) {
+        if (this.lastPosition.x === position.x && this.lastPosition.y === position.y) return
+      } else if (this.directions.vertical) {
+        if (this.lastPosition.y === position.y) return
+      } else if (this.directions.horizontal) {
+        if (this.lastPosition.x === position.x) return
+      }
+
+      this.lastPosition = position
+
       this.helper.move(position)
       this.animateNodes()
       this.autoscroll()
@@ -194,7 +194,7 @@ export default function sortableContainer<P>(
 
     snap(shift: number) {
       const nodes = this.manager.getOrderedRefs()
-      const { index: lastIndex } = nodes[nodes.length - 1].node.sortableInfo
+      const { index: lastIndex } = nodes[nodes.length - 1].element.sortableInfo
       const newIndex = this.newIndex! + shift
       const prevIndex = this.newIndex!
 
@@ -206,12 +206,11 @@ export default function sortableContainer<P>(
       this.newIndex = newIndex
 
       const targetIndex = getTargetIndex(this.newIndex, this.prevIndex, this.index)
-      const target = nodes.find(({ node }) => node.sortableInfo.index === targetIndex)!
-      const { node: targetNode } = target
+      const target = nodes.find(({ element: node }) => node.sortableInfo.index === targetIndex)!
+      const { element: targetNode } = target
 
       const scrollDelta = this.containerScrollDelta
-      const targetBoundingClientRect =
-        target.boundingClientRect || getScrollAdjustedBoundingClientRect(targetNode, scrollDelta)
+      const targetBoundingClientRect = getScrollAdjustedBoundingClientRect(targetNode, scrollDelta)
       const targetTranslate = target.translate || { x: 0, y: 0 }
 
       const targetPosition = {
@@ -229,18 +228,12 @@ export default function sortableContainer<P>(
     }
 
     async drop() {
-      const { hideSortableGhost, onSortEnd, dropAnimationDuration } = this.props
+      const { hideSortableGhost, dropAnimationDuration } = this.props
       const nodes = this.manager.getOrderedRefs()
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        const { edgeOffset, node: newNode } = this.manager.nodeAtIndex(this.newIndex)!
-        const newOffset = edgeOffset || getEdgeOffset(newNode, this.container)
-        await this.helper.drop(
-          newOffset,
-          newNode.offsetWidth,
-          newNode.offsetHeight,
-          this.newIndex! > this.index! ? 'forward' : 'backward'
-        )
+        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex - 0.5 : this.newIndex! - 1.5
+        await this.helper.drop(this.manager.nodeAtIndex(dropAfterIndex)?.element!)
       }
 
       // Remove the helper from the DOM
@@ -255,11 +248,7 @@ export default function sortableContainer<P>(
 
       for (let i = 0, len = nodes.length; i < len; i++) {
         const node = nodes[i]
-        const el = node.node
-
-        // Clear the cached offset/boundingClientRect
-        node.edgeOffset = undefined
-        node.boundingClientRect = undefined
+        const el = node.element
 
         // Remove the transforms / transitions
         setTranslate3d(el, null)
@@ -287,164 +276,50 @@ export default function sortableContainer<P>(
     }
 
     animateNodes = () => {
-      const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing, hideSortableGhost, onSortOver } = this.props
-      const { containerScrollDelta, windowScrollDelta } = this
+      const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
       const nodes = this.manager.getOrderedRefs()
-      const sortingOffset = {
-        left: this.offsetEdge!.left + this.helper.translate.x + containerScrollDelta.left,
-        top: this.offsetEdge!.top + this.helper.translate.y + containerScrollDelta.top
-      }
 
       const prevIndex = this.newIndex!
-      this.newIndex = undefined
+      // this.newIndex = undefined
 
-      for (let i = 0, len = nodes.length; i < len; i++) {
-        const { node } = nodes[i]
-        const { index } = node.sortableInfo
-        const width = node.offsetWidth
-        const height = node.offsetHeight
-        const offset = {
-          height: this.helper.height > height ? height / 2 : this.helper.height / 2,
-          width: this.helper.width > width ? width / 2 : this.helper.width / 2
-        }
+      const collidedNode = nodes.find(({ element, position }) => {
+        if (this.sortableGhost === element) return false
 
-        // For keyboard sorting, we want user input to dictate the position of the nodes
-        const mustShiftBackward = this.isSnapMotion && index > this.index! && index <= prevIndex
-        const mustShiftForward = this.isSnapMotion && index < this.index! && index >= prevIndex
+        const { height, y } = element.getBoundingClientRect()
 
-        const translate = { x: 0, y: 0 }
-        let { edgeOffset } = nodes[i]
+        const top = position?.y ?? y
+        const bottom = top + height
 
-        // If we haven't cached the node's offsetTop / offsetLeft value
-        if (!edgeOffset) {
-          edgeOffset = getEdgeOffset(node, this.container)
-          nodes[i].edgeOffset = edgeOffset
-          // While we're at it, cache the boundingClientRect, used during keyboard sorting
-          if (this.isSnapMotion) {
-            nodes[i].boundingClientRect = getScrollAdjustedBoundingClientRect(node, containerScrollDelta)
+        if (this.directions.vertical) {
+          if (top < this.helper.center.y && this.helper.center.y < bottom) {
+            return true
           }
         }
+        return false
+      })
 
-        // Get a reference to the next and previous node
-        const nextNode = i < nodes.length - 1 && nodes[i + 1]
-        const prevNode = i > 0 && nodes[i - 1]
+      if (!collidedNode) return
+      const diff = collidedNode?.element.sortableInfo.index > (this.newIndex ?? this.index!) ? 0.5 : -0.5
 
-        // Also cache the next node's edge offset if needed.
-        // We need this for calculating the animation in a grid setup
-        if (nextNode && !nextNode.edgeOffset) {
-          nextNode.edgeOffset = getEdgeOffset(nextNode.node, this.container)
-          if (this.isSnapMotion) {
-            nextNode.boundingClientRect = getScrollAdjustedBoundingClientRect(nextNode.node, containerScrollDelta)
-          }
-        }
+      this.newIndex = collidedNode?.element.sortableInfo.index + diff
+      if (prevIndex === this.newIndex) return
+      // if (this.transitting) return
 
-        // If the node is the one we're currently animating, skip it
-        if (index === this.index) {
-          if (hideSortableGhost) {
-            /*
-             * With windowing libraries such as `react-virtualized`, the sortableGhost
-             * node may change while scrolling down and then back up (or vice-versa),
-             * so we need to update the reference to the new node just to be safe.
-             */
-            this.sortableGhost = node
-            setInlineStyles(node, { opacity: 0, visibility: 'hidden' })
-          }
-          continue
-        }
+      const sortedNodes = this.manager.getOrderedRefs().sort((a, b) => {
+        const aIndex = a.element === this.sortableGhost ? this.newIndex! : a.element.sortableInfo.index
+        const bIndex = b.element === this.sortableGhost ? this.newIndex! : b.element.sortableInfo.index
+        return (aIndex - bIndex) * 10
+      })
 
-        if (outOfTheWayAnimationDuration) {
-          setTransition(node, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
-        }
+      sortedNodes.forEach((item, index) => {
+        const height = this.helper.height + this.marginOffset!.y
+        const translate = height * -(item.element.sortableInfo.index - index)
+        const { x, y } = item.element.getBoundingClientRect()
+        item.position = { x, y: y + translate }
 
-        if (this.directions.horizontal) {
-          if (this.directions.vertical) {
-            // Calculations for a grid setup
-            if (
-              mustShiftForward ||
-              (index < this.index! &&
-                ((sortingOffset.left + windowScrollDelta.left - offset.width <= edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height <= edgeOffset.top))
-            ) {
-              // If the current node is to the left on the same row, or above the node that's being dragged
-              // then move it to the right
-              translate.x = this.helper.width + this.marginOffset!.x
-              if (edgeOffset.left + translate.x > this.containerBoundingRect!.width - offset.width) {
-                // If it moves passed the right bounds, then animate it to the first position of the next row.
-                // We just use the offset of the next node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (nextNode) {
-                  translate.x = nextNode.edgeOffset!.left - edgeOffset.left
-                  translate.y = nextNode.edgeOffset!.top - edgeOffset.top
-                }
-              }
-              if (this.newIndex === undefined) {
-                this.newIndex = index
-              }
-            } else if (
-              mustShiftBackward ||
-              (index > this.index! &&
-                ((sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left &&
-                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top) ||
-                  sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top + height))
-            ) {
-              // If the current node is to the right on the same row, or below the node that's being dragged
-              // then move it to the left
-              translate.x = -(this.helper.width + this.marginOffset!.x)
-              if (edgeOffset.left + translate.x < this.containerBoundingRect!.left + offset.width) {
-                // If it moves passed the left bounds, then animate it to the last position of the previous row.
-                // We just use the offset of the previous node to calculate where to move, because that node's original position
-                // is exactly where we want to go
-                if (prevNode) {
-                  translate.x = prevNode.edgeOffset!.left - edgeOffset.left
-                  translate.y = prevNode.edgeOffset!.top - edgeOffset.top
-                }
-              }
-              this.newIndex = index
-            }
-          } else {
-            if (
-              mustShiftBackward ||
-              (index > this.index! && sortingOffset.left + windowScrollDelta.left + offset.width >= edgeOffset.left)
-            ) {
-              translate.x = -(this.helper.width + this.marginOffset!.x)
-              this.newIndex = index
-            } else if (
-              mustShiftForward ||
-              (index < this.index! && sortingOffset.left + windowScrollDelta.left <= edgeOffset.left + offset.width)
-            ) {
-              translate.x = this.helper.width + this.marginOffset!.x
-
-              if (this.newIndex == undefined) {
-                this.newIndex = index
-              }
-            }
-          }
-        } else if (this.directions.vertical) {
-          if (
-            mustShiftBackward ||
-            (index > this.index! && sortingOffset.top + windowScrollDelta.top + offset.height >= edgeOffset.top)
-          ) {
-            translate.y = -(this.helper.height + this.marginOffset!.y)
-            this.newIndex = index
-          } else if (
-            mustShiftForward ||
-            (index < this.index! && sortingOffset.top + windowScrollDelta.top <= edgeOffset.top + offset.height)
-          ) {
-            translate.y = this.helper.height + this.marginOffset!.y
-            if (this.newIndex == undefined) {
-              this.newIndex = index
-            }
-          }
-        }
-
-        setTranslate3d(node, translate)
-        nodes[i].translate = translate
-      }
-
-      if (this.newIndex == undefined) {
-        this.newIndex = this.index
-      }
+        setTranslate3d(item.element, { x: 0, y: translate })
+        // setTransition(item.element, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
+      })
 
       if (this.isSnapMotion) {
         // If keyboard sorting, we want the user input to dictate index, not location of the helper
@@ -509,7 +384,6 @@ export default function sortableContainer<P>(
     }
 
     getContainer() {
-      console.log(findDOMNode(this))
       return findDOMNode(this) as SortableContainerElement
     }
 
@@ -533,13 +407,6 @@ export default function sortableContainer<P>(
       return {
         left: this.scrollContainer.scrollLeft - this.initialScroll!.left,
         top: this.scrollContainer.scrollTop - this.initialScroll!.top
-      }
-    }
-
-    get windowScrollDelta() {
-      return {
-        left: window.pageXOffset - this.initialWindowScroll!.left,
-        top: window.pageYOffset - this.initialWindowScroll!.top
       }
     }
 
@@ -568,6 +435,45 @@ export default function sortableContainer<P>(
 
       if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
       return true
+    }
+
+    /**
+     * For simple rectangles without complex physics, this is an easy task.
+    Determine the distance Rectangle A must move to the top to get off of Rectangle B. Save the value in a variable(deltatop)
+    Then, determine the distance Rectangle A must move to the right to get off of Rectangle B. Save this value in a variable(deltaRight)
+    Then, determine the distance Rectangle A must move up to get off of Rectangle B. Save this value in a variable(deltaUp)
+    Then, determine the distance Rectangle A must move down to get off of Rectangle B. Save this value in a variable(deltaDown)
+    Compare the absolute values of each variable. Whichever variable's absolute value is the least, you know is the direction Rectangle A should move to stop overlapping Rectangle B.
+    Since you know how to resolve the collision, you should be able to imagine using this information to figure out which sides the rectangles hit on.
+    If either rectangle is traveling at a very high velocity or either rectangle is very small on either axis, this method may not work very well.
+     * @param element
+     */
+    detectCollision(element: HTMLElement) {
+      const { left, right, top, bottom, width, height } = element.getBoundingClientRect()
+      // if (this.helper.center.x >= left && this.helper.center.x < left + width / 2) return 'left'
+      // if (this.helper.center.x <= right && this.helper.center.x < right - width / 2) return 'right'
+
+      // if (this.helper.center.y >= top && this.helper.center.y < top + height / 2) return 'top'
+      // if (this.helper.center.y <= bottom && this.helper.center.y > bottom - height / 2) return 'bottom'
+
+      const w = 0.5 * (this.helper.width + width)
+      const h = 0.5 * (this.helper.height + height)
+      const dx = this.helper.center.x - (left + width / 2)
+      const dy = this.helper.center.y - (top + height / 2)
+
+      if (Math.abs(dx) <= w && Math.abs(dy) <= h) {
+        /* collision! */
+        const wy = w * dy
+        const hx = h * dx
+
+        if (wy > hx)
+          if (wy > -hx)
+            /* collision at the top */
+            return 'bottom'
+          else return 'left'
+        else if (wy > -hx) return 'right'
+        else return 'top'
+      }
     }
   }
 }

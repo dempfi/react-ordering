@@ -40,8 +40,8 @@ export const useElement = ({ index, disabled }: Options): Result => {
       }
     }
 
-    context?.add({ node: element })
-    return () => context?.remove({ node: element })
+    context?.add({ element: element })
+    return () => context?.remove({ element: element })
   }, [])
 
   useEffect(() => {

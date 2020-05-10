@@ -79,9 +79,9 @@ const Item = ({
 }
 
 const SortableList = SortableContainer(
-  ({ className, items, disabledItems = [], itemClass, isSorting, shouldUseDragHandle, type }) => {
+  ({ className, items, disabledItems = [], itemClass, isSorting, shouldUseDragHandle, type, ...rest }) => {
     return (
-      <div className={className}>
+      <div className={className} {...rest}>
         {items.map(({ value, height }, index) => {
           const disabled = disabledItems.includes(value)
 
@@ -420,7 +420,7 @@ storiesOf('General | Layout / Vertical list', module)
   .add('Basic setup', () => {
     return (
       <div className={style.root}>
-        <ListWrapper component={SortableList} items={getItems(50, 59)} helperClass={style.stylizedHelper} />
+        <ListWrapper component={SortableList} items={getItems(40, 59)} helperClass={style.stylizedHelper} />
       </div>
     )
   })
@@ -464,10 +464,12 @@ storiesOf('General | Layout / Grid', module)
     return (
       <div className={style.root}>
         <ListWrapper
+          style={{ backgroundColor: 'grey', margin: '20px', padding: '30px' }}
           component={SortableList}
           axis={'xy'}
           items={getItems(10, false)}
           helperClass={style.stylizedHelper}
+          // lockToContainerEdges
           className={classNames(style.list, style.stylizedList, style.grid)}
           itemClass={classNames(style.stylizedItem, style.gridItem)}
         />
@@ -578,11 +580,11 @@ storiesOf('General | Configuration / Options', module)
     return (
       <div className={style.root}>
         <ListWrapper
+          style={{ backgroundColor: 'grey', margin: '20px', padding: '30px' }}
           component={SortableList}
           items={getItems(50)}
           helperClass={style.stylizedHelper}
-          lockAxis={'y'}
-          lockOffset={['0%', '100%']}
+          lockToContainerEdges
         />
       </div>
     )

@@ -1,14 +1,5 @@
 import { CSSProperties } from 'react'
-import {
-  NodeType,
-  setTranslate3d,
-  setTransitionDuration,
-  clamp,
-  setInlineStyles,
-  getElementMargin,
-  getEdgeOffset,
-  setTransition
-} from './utils'
+import { NodeType, setTranslate3d, setTransitionDuration, clamp, setInlineStyles, setTransition } from './utils'
 import { Motion } from './backend'
 
 type Options = {
@@ -22,7 +13,7 @@ type Options = {
   helperClass?: string
 }
 
-export class Helper {
+export class Draggable {
   private static clone(element: HTMLElement) {
     const selector = 'input, textarea, select, canvas, [contenteditable]'
     const fields = element.querySelectorAll<HTMLInputElement>(selector)
@@ -54,92 +45,79 @@ export class Helper {
   translate!: { x: number; y: number }
   minTranslate: { x: number; y: number }
   maxTranslate: { x: number; y: number }
+
+  /**
+   * Get translation of element's center point
+   */
+  get center() {
+    return {
+      x: this.translate.x + this.width / 2,
+      y: this.translate.y + this.height / 2
+    }
+  }
+
+  get direction() {
+    if (this.directions.vertical) {
+      return this.previousTranslate.y <= this.translate.y ? 'down' : 'up'
+    }
+  }
+
   readonly element: HTMLElement
   private dropAnimation = {
     duration: 250,
     easing: 'cubic-bezier(.2,1,.1,1)'
   }
   private directions: { horizontal: boolean; vertical: boolean }
-  private initialPosition: { x: number; y: number }
-  private initialWindowScroll: { left: number; top: number }
+  private initialPointerPositionOnElement: { x: number; y: number } = { x: 0, y: 0 }
   private motion: Motion
   private lockToContainer: boolean
   private container: HTMLElement
-  private scrollContainer: HTMLElement
-
-  private get containerScrollDelta() {
-    return {
-      left: this.scrollContainer.scrollLeft - this.initialScroll!.left,
-      top: this.scrollContainer.scrollTop - this.initialScroll!.top
-    }
-  }
-
-  private get windowScrollDelta() {
-    return {
-      left: window.pageXOffset - this.initialWindowScroll!.left,
-      top: window.pageYOffset - this.initialWindowScroll!.top
-    }
-  }
-
-  initialScroll: { left: number; top: number }
-  offsetEdge: { left: number; top: number }
+  private previousTranslate!: { x: number; y: number }
 
   constructor(element: HTMLElement, options: Options) {
-    this.element = Helper.clone(element)
-    this.initialPosition = options.position
+    this.element = Draggable.clone(element)
+    this.initialPointerPositionOnElement = options.position
     this.motion = options.motion
     this.lockToContainer = options.lockToContainer ?? false
     this.container = options.container
-    this.scrollContainer = options.scrollContainer
     this.directions = options.directions
 
-    this.initialWindowScroll = {
-      left: window.pageXOffset,
-      top: window.pageYOffset
-    }
+    const { left, top, height, width } = element.getBoundingClientRect()
 
-    // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
-    const margin = getElementMargin(element)
-
-    this.width = element.offsetWidth
-    this.height = element.offsetHeight
-
-    const boundingClientRect = element.getBoundingClientRect()
-
-    this.offsetEdge = getEdgeOffset(element, this.container)
-
-    this.initialScroll = {
-      left: this.scrollContainer.scrollLeft,
-      top: this.scrollContainer.scrollTop
-    }
+    this.width = width
+    this.height = height
 
     setInlineStyles(this.element, {
       boxSizing: 'border-box',
-      height: `${this.height}px`,
-      left: `${boundingClientRect.left - margin.left}px`,
+      height: `${height}px`,
+      left: '0px',
       pointerEvents: 'none',
       position: 'fixed',
-      top: `${boundingClientRect.top - margin.top}px`,
-      width: `${this.width}px`
+      top: '0px',
+      width: `${width}px`
     })
 
-    if (this.motion === Motion.Snap) {
-      this.element.focus()
+    this.initialPointerPositionOnElement = {
+      x: left - options.position.x,
+      y: top - options.position.y
     }
 
-    this.minTranslate = { x: 0, y: 0 }
-    this.maxTranslate = { x: 0, y: 0 }
+    setTranslate3d(this.element, { x: left, y: top })
 
-    const containerBoundingRect = this.scrollContainer.getBoundingClientRect()
+    if (this.motion === Motion.Snap) this.element.focus()
 
-    if (this.directions.horizontal) {
-      this.minTranslate.x = containerBoundingRect.left - boundingClientRect.left
-      this.maxTranslate.x = containerBoundingRect.right - (boundingClientRect.left + this.width)
-    }
+    const containerBounds = this.getElementBound(this.container)
 
-    if (this.directions.vertical) {
-      this.minTranslate.y = containerBoundingRect.top - boundingClientRect.top
-      this.maxTranslate.y = containerBoundingRect.bottom - (boundingClientRect.top + this.height)
+    // Initialize with the scrollable container bounds for grid setup
+    this.minTranslate = { x: containerBounds.left, y: containerBounds.top }
+    this.maxTranslate = { x: containerBounds.right - this.width, y: containerBounds.bottom - this.height }
+
+    if (this.directions.vertical && !this.directions.horizontal) {
+      this.minTranslate.x = left
+      this.maxTranslate.x = left
+    } else if (this.directions.horizontal && !this.directions.vertical) {
+      this.minTranslate.y = top
+      this.maxTranslate.y = top
     }
 
     if (options.helperClass) {
@@ -159,10 +137,10 @@ export class Helper {
     this.element.parentElement?.removeChild(this.element)
   }
 
-  move(offset: { x: number; y: number }) {
+  move(position: { x: number; y: number }) {
     const translate = {
-      x: offset.x - this.initialPosition.x,
-      y: offset.y - this.initialPosition.y
+      x: position.x + this.initialPointerPositionOnElement.x,
+      y: position.y + this.initialPointerPositionOnElement.y
     }
 
     if (this.lockToContainer) {
@@ -172,31 +150,23 @@ export class Helper {
 
     if (this.motion === Motion.Snap) setTransitionDuration(this.element, 250)
 
+    this.previousTranslate = this.translate
     this.translate = translate
     setTranslate3d(this.element, translate)
   }
 
-  drop(
-    newOffset: { left: number; top: number },
-    offsetWidth: number,
-    offsetHeight: number,
-    direction: 'forward' | 'backward'
-  ) {
-    const oldOffset = this.offsetEdge
-
-    const deltaX =
-      direction === 'forward'
-        ? newOffset.left - this.width + offsetWidth - oldOffset.left
-        : newOffset.left - oldOffset.left
-    const deltaY =
-      direction === 'forward'
-        ? newOffset.top - this.height + offsetHeight - oldOffset.top
-        : newOffset.top - oldOffset.top
+  /**
+   * Drop element after given element
+   * @param afterElement element before the place we want to drop element into
+   */
+  drop(afterElement: HTMLElement) {
+    const { top, bottom, right, left } = afterElement.getBoundingClientRect()
 
     setTranslate3d(this.element, {
-      x: deltaX - this.containerScrollDelta.left - this.windowScrollDelta.left,
-      y: deltaY - this.containerScrollDelta.top - this.windowScrollDelta.top
+      x: this.directions.horizontal ? right : left,
+      y: this.directions.vertical ? bottom : top
     })
+
     setTransition(this.element, `transform ${this.dropAnimation.duration}ms ${this.dropAnimation.easing}`)
 
     return new Promise(resolve => {
@@ -207,5 +177,20 @@ export class Helper {
         resolve()
       })
     })
+  }
+
+  /**
+   * Get element's position relative to viewport without padding and border
+   * @param element html element
+   */
+  private getElementBound(element: HTMLElement) {
+    const boundingBox = element.getBoundingClientRect()
+    const styles = window.getComputedStyle(element)
+    return {
+      left: boundingBox.left + parseInt(styles.paddingLeft) + parseInt(styles.borderLeft),
+      top: boundingBox.top + parseInt(styles.paddingTop) + parseInt(styles.borderTop),
+      right: boundingBox.right - parseInt(styles.paddingRight) - parseInt(styles.borderRight),
+      bottom: boundingBox.bottom - parseInt(styles.paddingBottom) - parseInt(styles.borderBottom)
+    }
   }
 }

@@ -1,24 +1,23 @@
-import { SortableElement } from './element'
+import { SortableElement } from './use-element'
 
 type SortableItem = {
-  node: SortableElement
-  edgeOffset?: { left: number; top: number }
-  boundingClientRect?: { left: number; top: number }
+  element: SortableElement
+  position?: { x: number; y: number }
   translate?: { x: number; y: number }
 }
 
 export class Context {
   private items: SortableItem[] = []
-  private _active?: { index: number }
+  private _active?: { index: number; currentIndex: number }
 
   get active() {
     return this._active
   }
 
   set active(newActive) {
-    if (this._active) this.getActive()!.node.sortableInfo.setDragging(false)
+    if (this._active) this.activeItem!.element.sortableInfo.setDragging(false)
     this._active = newActive
-    if (newActive) this.getActive()!.node.sortableInfo.setDragging(true)
+    if (newActive) this.activeItem!.element.sortableInfo.setDragging(true)
   }
 
   add(ref: SortableItem) {
@@ -33,18 +32,14 @@ export class Context {
     }
   }
 
-  isActive() {
-    return this.active
-  }
-
-  getActive() {
+  private get activeItem() {
     return this.nodeAtIndex(this.active?.index)
   }
 
   nodeAtIndex(index?: number) {
     return this.items.find(
       // eslint-disable-next-line eqeqeq
-      ({ node }) => node.sortableInfo.index == index
+      ({ element: node }) => node.sortableInfo.index == index
     )
   }
 
@@ -59,12 +54,12 @@ export class Context {
 
 function sortByIndex(
   {
-    node: {
+    element: {
       sortableInfo: { index: index1 }
     }
   }: SortableItem,
   {
-    node: {
+    element: {
       sortableInfo: { index: index2 }
     }
   }: SortableItem
