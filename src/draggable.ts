@@ -106,7 +106,7 @@ export class Draggable {
 
     if (this.motion === Motion.Snap) this.element.focus()
 
-    const containerBounds = this.getElementBound(this.container)
+    const containerBounds = this.getElementContentBound(this.container)
 
     // Initialize with the scrollable container bounds for grid setup
     this.minTranslate = { x: containerBounds.left, y: containerBounds.top }
@@ -183,7 +183,7 @@ export class Draggable {
    * Get element's position relative to viewport without padding and border
    * @param element html element
    */
-  private getElementBound(element: HTMLElement) {
+  private getElementContentBound(element: HTMLElement) {
     const boundingBox = element.getBoundingClientRect()
     const styles = window.getComputedStyle(element)
     return {

@@ -108,7 +108,7 @@ export default function sortableContainer<P>(
       this.manager.active = { index, currentIndex: index }
       this.currentMotion = backend.motion
 
-      const { hideSortableGhost, updateBeforeSortStart, onSortStart } = this.props
+      const { hideSortableGhost, updateBeforeSortStart } = this.props
 
       if (typeof updateBeforeSortStart === 'function') {
         this._awaitingUpdateBeforeSortStart = true
@@ -193,7 +193,7 @@ export default function sortableContainer<P>(
     }
 
     snap(shift: number) {
-      const nodes = this.manager.getOrderedRefs()
+      const nodes = this.manager.items
       const { index: lastIndex } = nodes[nodes.length - 1].element.sortableInfo
       const newIndex = this.newIndex! + shift
       const prevIndex = this.newIndex!
@@ -229,10 +229,10 @@ export default function sortableContainer<P>(
 
     async drop() {
       const { hideSortableGhost, dropAnimationDuration } = this.props
-      const nodes = this.manager.getOrderedRefs()
+      const nodes = this.manager.items
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex! - 0.5 : this.newIndex! - 1.5
+        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex! : this.newIndex!
         await this.helper.drop(this.manager.nodeAtIndex(dropAfterIndex)?.element!)
       }
 
@@ -269,7 +269,7 @@ export default function sortableContainer<P>(
 
       this.props.onSortEnd({
         from: this.index!,
-        to: this.newIndex ?? this.index!,
+        to: this.newIndex! > this.index! ? this.newIndex! : this.newIndex! + 1,
         motion: this.currentMotion!,
         helper: this.helper.element
       })
@@ -277,7 +277,7 @@ export default function sortableContainer<P>(
 
     animateNodes = () => {
       const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
-      const nodes = this.manager.getOrderedRefs()
+      const nodes = this.manager.items
 
       const prevIndex = this.newIndex!
       // this.newIndex = undefined
@@ -299,19 +299,13 @@ export default function sortableContainer<P>(
       })
 
       if (!collidedNode) return
-      const diff = collidedNode?.element.sortableInfo.index > (this.newIndex ?? this.index!) ? 0.5 : -0.5
+      const diff = collidedNode?.element.sortableInfo.index > (this.newIndex ?? this.index!) ? 0 : -1
 
       this.newIndex = collidedNode?.element.sortableInfo.index + diff
+      this.manager.moveTo(collidedNode?.element.sortableInfo.index)
       if (prevIndex === this.newIndex) return
-      // if (this.transitting) return
 
-      const sortedNodes = this.manager.getOrderedRefs().sort((a, b) => {
-        const aIndex = a.element === this.sortableGhost ? this.newIndex! : a.element.sortableInfo.index
-        const bIndex = b.element === this.sortableGhost ? this.newIndex! : b.element.sortableInfo.index
-        return (aIndex - bIndex) * 10
-      })
-
-      sortedNodes.forEach((item, index) => {
+      this.manager.items.forEach((item, index) => {
         const height = this.helper.height + this.marginOffset!.y
 
         const translate = {
@@ -443,45 +437,6 @@ export default function sortableContainer<P>(
 
       if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
       return true
-    }
-
-    /**
-     * For simple rectangles without complex physics, this is an easy task.
-    Determine the distance Rectangle A must move to the top to get off of Rectangle B. Save the value in a variable(deltatop)
-    Then, determine the distance Rectangle A must move to the right to get off of Rectangle B. Save this value in a variable(deltaRight)
-    Then, determine the distance Rectangle A must move up to get off of Rectangle B. Save this value in a variable(deltaUp)
-    Then, determine the distance Rectangle A must move down to get off of Rectangle B. Save this value in a variable(deltaDown)
-    Compare the absolute values of each variable. Whichever variable's absolute value is the least, you know is the direction Rectangle A should move to stop overlapping Rectangle B.
-    Since you know how to resolve the collision, you should be able to imagine using this information to figure out which sides the rectangles hit on.
-    If either rectangle is traveling at a very high velocity or either rectangle is very small on either axis, this method may not work very well.
-     * @param element
-     */
-    detectCollision(element: HTMLElement) {
-      const { left, right, top, bottom, width, height } = element.getBoundingClientRect()
-      // if (this.helper.center.x >= left && this.helper.center.x < left + width / 2) return 'left'
-      // if (this.helper.center.x <= right && this.helper.center.x < right - width / 2) return 'right'
-
-      // if (this.helper.center.y >= top && this.helper.center.y < top + height / 2) return 'top'
-      // if (this.helper.center.y <= bottom && this.helper.center.y > bottom - height / 2) return 'bottom'
-
-      const w = 0.5 * (this.helper.width + width)
-      const h = 0.5 * (this.helper.height + height)
-      const dx = this.helper.center.x - (left + width / 2)
-      const dy = this.helper.center.y - (top + height / 2)
-
-      if (Math.abs(dx) <= w && Math.abs(dy) <= h) {
-        /* collision! */
-        const wy = w * dy
-        const hx = h * dx
-
-        if (wy > hx)
-          if (wy > -hx)
-            /* collision at the top */
-            return 'bottom'
-          else return 'left'
-        else if (wy > -hx) return 'right'
-        else return 'top'
-      }
     }
   }
 }

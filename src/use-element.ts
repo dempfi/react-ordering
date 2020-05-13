@@ -40,8 +40,8 @@ export const useElement = ({ index, disabled }: Options): Result => {
       }
     }
 
-    context?.add({ element: element })
-    return () => context?.remove({ element: element })
+    context?.registerItem({ element: element })
+    return () => context?.unregisterItem({ element: element })
   }, [])
 
   useEffect(() => {
