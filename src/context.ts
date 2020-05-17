@@ -1,16 +1,12 @@
-import { SortableElement } from './use-element'
-
-type SortableItem = {
-  element: SortableElement
-  position?: { x: number; y: number }
-  translate?: { x: number; y: number }
-}
+import { Sortable } from './sortable'
 
 export class Context {
-  readonly items: SortableItem[] = []
+  readonly sortables: Sortable[] = []
 
   private _active?: { index: number; currentIndex: number }
+
   private currentIndex?: number
+
   private originalIndex?: number
 
   get active() {
@@ -18,32 +14,29 @@ export class Context {
   }
 
   set active(newActive) {
-    if (this._active) this.activeItem!.element.sortableInfo.setDragging(false)
+    // if (this._active) this.activeItem!.element.sortableInfo.setDragging(false)
     this._active = newActive
-    if (newActive) this.activeItem!.element.sortableInfo.setDragging(true)
+    // if (newActive) this.activeItem!.element.sortableInfo.setDragging(true)
   }
 
   moveTo(targetIndex: number) {
     const targetOffset = targetIndex > this.currentIndex! ? 0 : -1
     this.currentIndex = targetIndex + targetOffset
 
-    this.items.sort((left, right) => {
-      const trueLeftIndex = left.element.sortableInfo.index
-      const trueRightIndex = right.element.sortableInfo.index
-
-      const leftIndex = trueLeftIndex === this.active?.index ? this.currentIndex! + 0.5 : trueLeftIndex
-      const rightIndex = trueRightIndex === this.active?.index ? this.currentIndex! + 0.5 : trueRightIndex
+    this.sortables.sort((left, right) => {
+      const leftIndex = left.index === this.active?.index ? this.currentIndex! + 0.5 : left.index
+      const rightIndex = right.index === this.active?.index ? this.currentIndex! + 0.5 : right.index
       return (leftIndex - rightIndex) * 10
     })
   }
 
-  registerItem(item: SortableItem) {
-    this.items.push(item)
+  registerSortable(item: Sortable) {
+    this.sortables.push(item)
   }
 
-  unregisterItem(item: SortableItem) {
-    const index = this.items.indexOf(item)
-    if (index !== -1) this.items.splice(this.items.indexOf(item), 1)
+  unregisterSortable(item: Sortable) {
+    const index = this.sortables.indexOf(item)
+    if (index !== -1) this.sortables.splice(this.sortables.indexOf(item), 1)
   }
 
   private get activeItem() {
@@ -51,9 +44,6 @@ export class Context {
   }
 
   nodeAtIndex(index?: number) {
-    return this.items.find(
-      // eslint-disable-next-line eqeqeq
-      ({ element: node }) => node.sortableInfo.index == index
-    )
+    return this.sortables.find(s => s.index === index)
   }
 }

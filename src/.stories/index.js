@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
-import { SortableContainer, useHandle, useElement } from '../index'
+import { SortableContainer, useHandle, useSortable } from '../index'
 import arrayMove from 'array-move'
 import VirtualList from 'react-tiny-virtual-list'
 import { FixedSizeList, VariableSizeList } from 'react-window'
@@ -50,7 +50,7 @@ const Item = ({
   isSorting,
   ...rest
 }) => {
-  const [ref, { isDragging }] = useElement(rest)
+  const [ref, { isDragging }] = useSortable(rest)
   const bodyTabIndex = tabbable && !shouldUseDragHandle ? 0 : -1
   const handleTabIndex = tabbable && shouldUseDragHandle ? 0 : -1
 
@@ -129,7 +129,7 @@ class SortableListWithCustomContainer extends React.Component {
 
 const Category = props => {
   const tabIndex = props.tabbable ? 0 : -1
-  const [ref] = useElement(props)
+  const [ref] = useSortable(props)
 
   return (
     <div className={style.category} ref={ref}>

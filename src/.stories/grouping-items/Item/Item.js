@@ -1,13 +1,13 @@
 import React from 'react'
 import classNames from 'classnames'
-import { useElement } from '../../../../src'
+import { useSortable } from '../../../../src'
 
 import styles from './Item.scss'
 
 const ENTER_KEY = 13
 
 function Item(props) {
-  const [ref] = useElement(props)
+  const [ref] = useSortable(props)
   const { dragging, sorting, onClick, selected, selectedItemsCount, value } = props
   const shouldRenderItemCountBadge = dragging && selectedItemsCount > 1
 

@@ -23,7 +23,7 @@ import { AutoScroller } from '../auto-scroller'
 import { defaultProps, orderingProps } from './props'
 
 import { WrappedComponent, Config, SortableContainerProps } from '../types'
-import { isSortableElement, SortableElement } from '../use-element'
+import { Sortable } from '../sortable'
 import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
 import { Draggable } from '../draggable'
 import { CONTEXT_KEY } from '../constants'
@@ -45,7 +45,7 @@ export default function sortableContainer<P>(
     newIndex?: number
     marginOffset?: { x: number; y: number }
     index?: number
-    sortableGhost?: SortableElement
+    sortableGhost?: Sortable
     prevIndex?: number
     backends: Backend[] = []
     helper!: Draggable
@@ -87,8 +87,8 @@ export default function sortableContainer<P>(
       this.backends = []
     }
 
-    nodeIsChild = (node: SortableElement) => {
-      return node.sortableInfo.manager === this.manager
+    nodeIsChild = (node: Sortable) => {
+      return node.context === this.manager
     }
 
     cancel = () => {
@@ -101,10 +101,11 @@ export default function sortableContainer<P>(
     }
 
     async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
-      const node = closest(element, isSortableElement)!
+      const node = closest(element, Sortable.attachedTo)!
       backend.lifted(node)
 
-      const { index } = node.sortableInfo
+      const sortable = Sortable.of(node)!
+      const index = sortable.index
       this.manager.active = { index, currentIndex: index }
       this.currentMotion = backend.motion
 
@@ -154,14 +155,9 @@ export default function sortableContainer<P>(
         left: this.scrollContainer.scrollLeft,
         top: this.scrollContainer.scrollTop
       }
-      if (hideSortableGhost) {
-        this.sortableGhost = node
 
-        setInlineStyles(node, {
-          opacity: 0.5
-          // visibility: 'hidden'
-        })
-      }
+      this.sortableGhost = sortable
+      this.sortableGhost.hide()
 
       this.setState({
         sorting: true,
@@ -193,8 +189,8 @@ export default function sortableContainer<P>(
     }
 
     snap(shift: number) {
-      const nodes = this.manager.items
-      const { index: lastIndex } = nodes[nodes.length - 1].element.sortableInfo
+      const nodes = this.manager.sortables
+      const { index: lastIndex } = nodes[nodes.length - 1]
       const newIndex = this.newIndex! + shift
       const prevIndex = this.newIndex!
 
@@ -206,7 +202,7 @@ export default function sortableContainer<P>(
       this.newIndex = newIndex
 
       const targetIndex = getTargetIndex(this.newIndex, this.prevIndex, this.index)
-      const target = nodes.find(({ element: node }) => node.sortableInfo.index === targetIndex)!
+      const target = nodes.find(({ index }) => index === targetIndex)!
       const { element: targetNode } = target
 
       const scrollDelta = this.containerScrollDelta
@@ -229,22 +225,15 @@ export default function sortableContainer<P>(
 
     async drop() {
       const { hideSortableGhost, dropAnimationDuration } = this.props
-      const nodes = this.manager.items
+      const nodes = this.manager.sortables
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        const dropAfterIndex = this.newIndex! > this.index! ? this.newIndex! : this.newIndex!
-        await this.helper.drop(this.manager.nodeAtIndex(dropAfterIndex)?.element!)
+        await this.helper.drop(this.sortableGhost!.element)
       }
 
       // Remove the helper from the DOM
       this.helper.detach()
-
-      if (hideSortableGhost && this.sortableGhost) {
-        setInlineStyles(this.sortableGhost, {
-          opacity: '',
-          visibility: ''
-        })
-      }
+      this.sortableGhost?.show()
 
       for (let i = 0, len = nodes.length; i < len; i++) {
         const node = nodes[i]
@@ -277,40 +266,27 @@ export default function sortableContainer<P>(
 
     animateNodes = () => {
       const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
-      const nodes = this.manager.items
-
       const prevIndex = this.newIndex!
       // this.newIndex = undefined
 
-      const collidedNode = nodes.find(({ element, position }) => {
-        if (this.sortableGhost === element) return false
-
-        const { height, y } = element.getBoundingClientRect()
-
-        const top = y
-        const bottom = top + height
-
-        if (this.directions.vertical) {
-          if (top < this.helper.center.y && this.helper.center.y < bottom) {
-            return true
-          }
-        }
-        return false
+      const collidedNode = this.manager.sortables.find(sortable => {
+        if (this.sortableGhost === sortable) return false
+        return sortable.includes(this.helper.center, this.directions)
       })
 
       if (!collidedNode) return
-      const diff = collidedNode?.element.sortableInfo.index > (this.newIndex ?? this.index!) ? 0 : -1
+      const diff = collidedNode?.index > (this.newIndex ?? this.index!) ? 0 : -1
 
-      this.newIndex = collidedNode?.element.sortableInfo.index + diff
-      this.manager.moveTo(collidedNode?.element.sortableInfo.index)
+      this.newIndex = collidedNode?.index + diff
+      this.manager.moveTo(collidedNode?.index)
       if (prevIndex === this.newIndex) return
 
-      this.manager.items.forEach((item, index) => {
+      this.manager.sortables.forEach((item, index) => {
         const height = this.helper.height + this.marginOffset!.y
 
         const translate = {
           x: 0,
-          y: height * -(item.element.sortableInfo.index - index)
+          y: height * -(item.index - index)
         }
 
         if (item.translate?.y === translate.y) return
@@ -431,9 +407,11 @@ export default function sortableContainer<P>(
       if (this.props.shouldCancelStart!(element)) return false
       if (this.state.sorting) return false
 
-      const sortableElement = closest(element, isSortableElement)
-      if (!sortableElement || !this.nodeIsChild(sortableElement)) return false
-      if (sortableElement.sortableInfo.disabled) return false
+      const sortableElement = closest(element, Sortable.attachedTo)
+      if (!sortableElement) return false
+
+      const sortable = Sortable.of(sortableElement)!
+      if (!this.nodeIsChild(sortable) || sortable.disabled) return false
 
       if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
       return true

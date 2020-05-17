@@ -56,12 +56,6 @@ export class Draggable {
     }
   }
 
-  get direction() {
-    if (this.directions.vertical) {
-      return this.previousTranslate.y <= this.translate.y ? 'down' : 'up'
-    }
-  }
-
   readonly element: HTMLElement
   private dropAnimation = {
     duration: 250,
@@ -156,17 +150,12 @@ export class Draggable {
   }
 
   /**
-   * Drop element after given element
-   * @param afterElement element before the place we want to drop element into
+   * Drop element at given element
    */
-  drop(afterElement: HTMLElement) {
-    const { top, bottom, right, left } = afterElement.getBoundingClientRect()
+  drop(atElement: HTMLElement) {
+    const { x, y } = atElement.getBoundingClientRect()
 
-    setTranslate3d(this.element, {
-      x: this.directions.horizontal ? right : left,
-      y: this.directions.vertical ? bottom : top
-    })
-
+    setTranslate3d(this.element, { x, y })
     setTransition(this.element, `transform ${this.dropAnimation.duration}ms ${this.dropAnimation.easing}`)
 
     return new Promise(resolve => {
