@@ -8,10 +8,10 @@ type SortableHTMLElement = HTMLElement & {
 
 export class Sortable {
   static of(el: HTMLElement) {
-    if (this.attachedTo(el)) return el[SORTABLE_KEY]
+    if (this.isAttachedTo(el)) return el[SORTABLE_KEY]
   }
 
-  static attachedTo(el: HTMLElement): el is SortableHTMLElement {
+  static isAttachedTo(el: HTMLElement): el is SortableHTMLElement {
     return (el as SortableHTMLElement)[SORTABLE_KEY] !== undefined
   }
 

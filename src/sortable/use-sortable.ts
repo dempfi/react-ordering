@@ -27,7 +27,7 @@ export const useSortable = ({ index, disabled }: Options): Result => {
   }, [])
 
   useEffect(() => {
-    if (!ref.current || !Sortable.attachedTo(ref.current)) return
+    if (!ref.current || !Sortable.isAttachedTo(ref.current)) return
     const sortable = Sortable.of(ref.current)!
     sortable.index = index
     sortable.disabled = !!disabled

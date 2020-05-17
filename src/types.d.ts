@@ -19,7 +19,7 @@ export interface Dimensions {
 
 export interface SortableContainerProps {
   axis?: Axis
-  disableAutoscroll?: boolean
+  disableAutoScroll?: boolean
   dropAnimationDuration?: number
   dropAnimationEasing?: string
   helperClass?: string

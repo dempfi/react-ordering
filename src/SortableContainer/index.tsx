@@ -6,11 +6,8 @@ import { Context } from '../context'
 
 import {
   closest,
-  getContainerGridGap,
-  getElementMargin,
   omit,
   provideDisplayName,
-  setInlineStyles,
   setTransition,
   setTransitionDuration,
   setTranslate3d,
@@ -43,12 +40,11 @@ export default function sortableContainer<P>(
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     initialScroll?: { left: number; top: number }
     newIndex?: number
-    marginOffset?: { x: number; y: number }
     index?: number
-    sortableGhost?: Sortable
+    active?: Sortable
     prevIndex?: number
     backends: Backend[] = []
-    helper!: Draggable
+    draggable!: Draggable
     currentMotion?: Motion
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
@@ -82,7 +78,7 @@ export default function sortableContainer<P>(
     }
 
     componentWillUnmount() {
-      this.helper?.detach()
+      this.draggable?.detach()
       this.backends.forEach(b => b.detach())
       this.backends = []
     }
@@ -101,7 +97,7 @@ export default function sortableContainer<P>(
     }
 
     async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
-      const node = closest(element, Sortable.attachedTo)!
+      const node = closest(element, Sortable.isAttachedTo)!
       backend.lifted(node)
 
       const sortable = Sortable.of(node)!
@@ -120,14 +116,14 @@ export default function sortableContainer<P>(
             to: index,
             motion: this.currentMotion!,
             // FIXME, there's no helper yer
-            helper: this.helper?.element
+            helper: this.draggable?.element
           })
         } finally {
           this._awaitingUpdateBeforeSortStart = false
         }
       }
 
-      this.helper = new Draggable(node, {
+      this.draggable = new Draggable(node, {
         directions: this.directions,
         position,
         lockToContainer: this.props.lockToContainerEdges,
@@ -137,16 +133,8 @@ export default function sortableContainer<P>(
         helperClass: this.props.helperClass,
         helperStyle: this.props.helperStyle
       })
-      this.helper.attach(this.helperContainer)
 
-      // Need to get the latest value for `index` in case it changes during `updateBeforeSortStart`
-      const margin = getElementMargin(node)
-      const gridGap = getContainerGridGap(this.container)
-
-      this.marginOffset = {
-        x: margin.left + margin.right + gridGap.x,
-        y: Math.max(margin.top, margin.bottom, gridGap.y)
-      }
+      this.draggable.attachTo(this.helperContainer)
 
       this.index = index
       this.newIndex = index
@@ -156,8 +144,8 @@ export default function sortableContainer<P>(
         top: this.scrollContainer.scrollTop
       }
 
-      this.sortableGhost = sortable
-      this.sortableGhost.hide()
+      this.active = sortable
+      this.active.hide()
 
       this.setState({
         sorting: true,
@@ -168,7 +156,7 @@ export default function sortableContainer<P>(
         from: this.index!,
         to: this.newIndex ?? this.index!,
         motion: this.currentMotion!,
-        helper: this.helper.element
+        helper: this.draggable.element
       })
     }
 
@@ -183,9 +171,9 @@ export default function sortableContainer<P>(
 
       this.lastPosition = position
 
-      this.helper.move(position)
+      this.draggable.move(position)
       this.animateNodes()
-      this.autoscroll()
+      this.autoScroll()
     }
 
     snap(shift: number) {
@@ -216,8 +204,8 @@ export default function sortableContainer<P>(
 
       const shouldAdjustForSize = prevIndex < newIndex
       const sizeAdjustment = {
-        x: shouldAdjustForSize && this.directions.horizontal ? targetNode.offsetWidth - this.helper.width : 0,
-        y: shouldAdjustForSize && this.directions.vertical ? targetNode.offsetHeight - this.helper.height : 0
+        x: shouldAdjustForSize && this.directions.horizontal ? targetNode.offsetWidth - this.draggable.width : 0,
+        y: shouldAdjustForSize && this.directions.vertical ? targetNode.offsetHeight - this.draggable.height : 0
       }
 
       this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
@@ -225,27 +213,22 @@ export default function sortableContainer<P>(
 
     async drop() {
       const { hideSortableGhost, dropAnimationDuration } = this.props
-      const nodes = this.manager.sortables
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        await this.helper.drop(this.sortableGhost!.element)
+        await this.draggable.drop(this.active!.element)
       }
 
       // Remove the helper from the DOM
-      this.helper.detach()
-      this.sortableGhost?.show()
+      this.draggable.detach()
+      this.active?.show()
 
-      for (let i = 0, len = nodes.length; i < len; i++) {
-        const node = nodes[i]
-        const el = node.element
+      this.manager.sortables.forEach(sortable => {
+        setTranslate3d(sortable.element, null)
+        setTransitionDuration(sortable.element, null)
+        sortable.translate = undefined
+      })
 
-        // Remove the transforms / transitions
-        setTranslate3d(el, null)
-        setTransitionDuration(el, null)
-        node.translate = undefined
-      }
-
-      // Stop autoscroll
+      // Stop auto scroll
       this.autoScroller.clear()
 
       // Update manager state
@@ -260,7 +243,7 @@ export default function sortableContainer<P>(
         from: this.index!,
         to: this.newIndex! > this.index! ? this.newIndex! : this.newIndex! + 1,
         motion: this.currentMotion!,
-        helper: this.helper.element
+        helper: this.draggable.element
       })
     }
 
@@ -270,8 +253,8 @@ export default function sortableContainer<P>(
       // this.newIndex = undefined
 
       const collidedNode = this.manager.sortables.find(sortable => {
-        if (this.sortableGhost === sortable) return false
-        return sortable.includes(this.helper.center, this.directions)
+        if (this.active === sortable) return false
+        return sortable.includes(this.draggable.center, this.directions)
       })
 
       if (!collidedNode) return
@@ -282,17 +265,20 @@ export default function sortableContainer<P>(
       if (prevIndex === this.newIndex) return
 
       this.manager.sortables.forEach((item, index) => {
-        const height = this.helper.height + this.marginOffset!.y
+        const height = this.draggable.height + this.draggable.margins.y
+        const width = this.draggable.width + this.draggable.margins.x
+        const translateY = this.directions.vertical ? height * -(item.index - index) : 0
+        const translateX = this.directions.horizontal ? width * -(item.index - index) : 0
 
         const translate = {
-          x: 0,
-          y: height * -(item.index - index)
+          x: translateX,
+          y: translateY
         }
 
-        if (item.translate?.y === translate.y) return
+        if (item.translate?.y === translate.y && item.translate?.x === translate.x) return
 
         const { x, y } = item.element.getBoundingClientRect()
-        item.position = { x, y: y + translate.y }
+        item.position = { x: x + translate.x, y: y + translate.y }
         item.translate = translate
 
         setTranslate3d(item.element, translate)
@@ -311,41 +297,41 @@ export default function sortableContainer<P>(
         from: this.index!,
         to: oldIndex!,
         motion: this.currentMotion!,
-        helper: this.helper.element
+        helper: this.draggable.element
       })
     }
 
-    autoscroll = () => {
-      const { disableAutoscroll } = this.props
+    autoScroll = () => {
+      const { disableAutoScroll } = this.props
 
-      if (disableAutoscroll) {
+      if (disableAutoScroll) {
         this.autoScroller.clear()
         return
       }
 
       if (this.isSnapMotion) {
-        const translate = { ...this.helper.translate }
+        const translate = { ...this.draggable.translate }
         let scrollX = 0
         let scrollY = 0
 
         if (this.directions.horizontal) {
           translate.x = Math.min(
-            this.helper.maxTranslate.x,
-            Math.max(this.helper.minTranslate.x, this.helper.translate.x)
+            this.draggable.maxTranslate.x,
+            Math.max(this.draggable.minTranslate.x, this.draggable.translate.x)
           )
-          scrollX = this.helper.translate.x - translate.x
+          scrollX = this.draggable.translate.x - translate.x
         }
 
         if (this.directions.vertical) {
           translate.y = Math.min(
-            this.helper.maxTranslate.y,
-            Math.max(this.helper.minTranslate.y, this.helper.translate.y)
+            this.draggable.maxTranslate.y,
+            Math.max(this.draggable.minTranslate.y, this.draggable.translate.y)
           )
-          scrollY = this.helper.translate.y - translate.y
+          scrollY = this.draggable.translate.y - translate.y
         }
 
-        this.helper.translate = translate
-        setTranslate3d(this.helper.element, this.helper.translate)
+        this.draggable.translate = translate
+        setTranslate3d(this.draggable.element, this.draggable.translate)
         this.scrollContainer.scrollLeft += scrollX
         this.scrollContainer.scrollTop += scrollY
 
@@ -353,11 +339,11 @@ export default function sortableContainer<P>(
       }
 
       this.autoScroller.update({
-        height: this.helper.height,
-        maxTranslate: this.helper.maxTranslate,
-        minTranslate: this.helper.minTranslate,
-        translate: this.helper.translate,
-        width: this.helper.width
+        height: this.draggable.height,
+        maxTranslate: this.draggable.maxTranslate,
+        minTranslate: this.draggable.minTranslate,
+        translate: this.draggable.translate,
+        width: this.draggable.width
       })
     }
 
@@ -407,7 +393,7 @@ export default function sortableContainer<P>(
       if (this.props.shouldCancelStart!(element)) return false
       if (this.state.sorting) return false
 
-      const sortableElement = closest(element, Sortable.attachedTo)
+      const sortableElement = closest(element, Sortable.isAttachedTo)
       if (!sortableElement) return false
 
       const sortable = Sortable.of(sortableElement)!

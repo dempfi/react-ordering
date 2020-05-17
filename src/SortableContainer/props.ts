@@ -5,7 +5,7 @@ import defaultShouldCancelStart from './defaultShouldCancelStart'
 export const orderingProps = [
   'axis',
   'contentWindow',
-  'disableAutoscroll',
+  'disableAutoScroll',
   'distance',
   'dropAnimationDuration',
   'dropAnimationEasing',
@@ -41,7 +41,7 @@ export const defaultKeyCodes = {
 
 export const defaultProps = {
   axis: 'y',
-  disableAutoscroll: false,
+  disableAutoScroll: false,
   distance: 0,
   dropAnimationDuration: 250,
   dropAnimationEasing: 'cubic-bezier(.2,1,.1,1)',

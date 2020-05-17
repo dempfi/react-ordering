@@ -1,5 +1,14 @@
 import { CSSProperties } from 'react'
-import { NodeType, setTranslate3d, setTransitionDuration, clamp, setInlineStyles, setTransition } from './utils'
+import {
+  NodeType,
+  setTranslate3d,
+  setTransitionDuration,
+  clamp,
+  setInlineStyles,
+  setTransition,
+  getElementMargin,
+  getContainerGridGap
+} from './utils'
 import { Motion } from './backend'
 
 type Options = {
@@ -42,6 +51,7 @@ export class Draggable {
 
   width: number
   height: number
+  margins: { x: any; y: number }
   translate!: { x: number; y: number }
   minTranslate: { x: number; y: number }
   maxTranslate: { x: number; y: number }
@@ -66,37 +76,43 @@ export class Draggable {
   private motion: Motion
   private lockToContainer: boolean
   private container: HTMLElement
-  private previousTranslate!: { x: number; y: number }
 
   constructor(element: HTMLElement, options: Options) {
     this.element = Draggable.clone(element)
-    this.initialPointerPositionOnElement = options.position
     this.motion = options.motion
-    this.lockToContainer = options.lockToContainer ?? false
     this.container = options.container
     this.directions = options.directions
+    this.initialPointerPositionOnElement = options.position
+    this.lockToContainer = options.lockToContainer ?? false
 
-    const { left, top, height, width } = element.getBoundingClientRect()
+    const margin = getElementMargin(element)
+    const gridGap = getContainerGridGap(this.container)
 
-    this.width = width
-    this.height = height
+    this.margins = {
+      x: margin.left + margin.right + gridGap.x,
+      y: Math.max(margin.top, margin.bottom, gridGap.y)
+    }
+
+    this.width = element.offsetWidth
+    this.height = element.offsetHeight
 
     setInlineStyles(this.element, {
       boxSizing: 'border-box',
-      height: `${height}px`,
+      height: `${this.height}px`,
+      width: `${this.width}px`,
       left: '0px',
       pointerEvents: 'none',
       position: 'fixed',
-      top: '0px',
-      width: `${width}px`
+      top: '0px'
     })
 
+    const initialPosition = element.getBoundingClientRect()
     this.initialPointerPositionOnElement = {
-      x: left - options.position.x,
-      y: top - options.position.y
+      x: initialPosition.x - options.position.x,
+      y: initialPosition.y - options.position.y
     }
 
-    setTranslate3d(this.element, { x: left, y: top })
+    setTranslate3d(this.element, { x: initialPosition.x, y: initialPosition.y })
 
     if (this.motion === Motion.Snap) this.element.focus()
 
@@ -107,11 +123,11 @@ export class Draggable {
     this.maxTranslate = { x: containerBounds.right - this.width, y: containerBounds.bottom - this.height }
 
     if (this.directions.vertical && !this.directions.horizontal) {
-      this.minTranslate.x = left
-      this.maxTranslate.x = left
+      this.minTranslate.x = initialPosition.x
+      this.maxTranslate.x = initialPosition.x
     } else if (this.directions.horizontal && !this.directions.vertical) {
-      this.minTranslate.y = top
-      this.maxTranslate.y = top
+      this.minTranslate.y = initialPosition.y
+      this.maxTranslate.y = initialPosition.y
     }
 
     if (options.helperClass) {
@@ -123,7 +139,7 @@ export class Draggable {
     }
   }
 
-  attach(container: HTMLElement) {
+  attachTo(container: HTMLElement) {
     container.append(this.element)
   }
 
@@ -144,7 +160,6 @@ export class Draggable {
 
     if (this.motion === Motion.Snap) setTransitionDuration(this.element, 250)
 
-    this.previousTranslate = this.translate
     this.translate = translate
     setTranslate3d(this.element, translate)
   }
