@@ -72,7 +72,7 @@ export class Draggable {
     easing: 'cubic-bezier(.2,1,.1,1)'
   }
   private directions: { horizontal: boolean; vertical: boolean }
-  private initialPointerPositionOnElement: { x: number; y: number } = { x: 0, y: 0 }
+  private initialPointerPositionOnElement: { x: number; y: number }
   private motion: Motion
   private lockToContainer: boolean
   private container: HTMLElement
@@ -167,9 +167,7 @@ export class Draggable {
   /**
    * Drop element at given element
    */
-  drop(atElement: HTMLElement) {
-    const { x, y } = atElement.getBoundingClientRect()
-
+  drop({ x, y }: { x: number; y: number }) {
     setTranslate3d(this.element, { x, y })
     setTransition(this.element, `transform ${this.dropAnimation.duration}ms ${this.dropAnimation.easing}`)
 

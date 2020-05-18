@@ -215,7 +215,7 @@ export default function sortableContainer<P>(
       const { hideSortableGhost, dropAnimationDuration } = this.props
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        await this.draggable.drop(this.active!.element)
+        await this.draggable.drop(this.active!.position)
       }
 
       // Remove the helper from the DOM
@@ -225,7 +225,7 @@ export default function sortableContainer<P>(
       this.manager.sortables.forEach(sortable => {
         setTranslate3d(sortable.element, null)
         setTransitionDuration(sortable.element, null)
-        sortable.translate = undefined
+        // sortable.translate = undefined
       })
 
       // Stop auto scroll
@@ -264,25 +264,18 @@ export default function sortableContainer<P>(
       this.manager.moveTo(collidedNode?.index)
       if (prevIndex === this.newIndex) return
 
-      this.manager.sortables.forEach((item, index) => {
+      this.manager.sortables.forEach((sortable, index) => {
         const height = this.draggable.height + this.draggable.margins.y
         const width = this.draggable.width + this.draggable.margins.x
-        const translateY = this.directions.vertical ? height * -(item.index - index) : 0
-        const translateX = this.directions.horizontal ? width * -(item.index - index) : 0
+        const translateY = this.directions.vertical ? height * -(sortable.index - index) : 0
+        const translateX = this.directions.horizontal ? width * -(sortable.index - index) : 0
 
         const translate = {
           x: translateX,
           y: translateY
         }
 
-        if (item.translate?.y === translate.y && item.translate?.x === translate.x) return
-
-        const { x, y } = item.element.getBoundingClientRect()
-        item.position = { x: x + translate.x, y: y + translate.y }
-        item.translate = translate
-
-        setTranslate3d(item.element, translate)
-        // setTransition(item.element, `transform ${outOfTheWayAnimationDuration}ms ${outOfTheWayAnimationEasing}`)
+        sortable.translateTo(translate)
       })
 
       if (this.isSnapMotion) {
