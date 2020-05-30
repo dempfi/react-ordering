@@ -1,5 +1,4 @@
 import React, { Component } from 'react'
-import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
@@ -154,18 +153,18 @@ class ListWrapper extends Component {
     isSorting: false
   }
 
-  static propTypes = {
-    items: PropTypes.array,
-    className: PropTypes.string,
-    itemClass: PropTypes.string,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    onSortStart: PropTypes.func,
-    onSortEnd: PropTypes.func,
-    component: PropTypes.func,
-    shouldUseDragHandle: PropTypes.bool,
-    disabledItems: PropTypes.arrayOf(PropTypes.string)
-  }
+  // static propTypes = {
+  //   items: PropTypes.array,
+  //   className: PropTypes.string,
+  //   itemClass: PropTypes.string,
+  //   width: PropTypes.number,
+  //   height: PropTypes.number,
+  //   onSortStart: PropTypes.func,
+  //   onSortEnd: PropTypes.func,
+  //   component: PropTypes.func,
+  //   shouldUseDragHandle: PropTypes.bool,
+  //   disabledItems: PropTypes.arrayOf(PropTypes.string)
+  // }
 
   static defaultProps = {
     className: classNames(style.list, style.stylizedList),
@@ -327,16 +326,16 @@ const SortableTable = SortableContainer(Table, { withRef: true })
 // const SortableRowRenderer = SortableElement(defaultTableRowRenderer)
 
 class TableWrapper extends Component {
-  static propTypes = {
-    items: PropTypes.array,
-    className: PropTypes.string,
-    helperClass: PropTypes.string,
-    itemClass: PropTypes.string,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    itemHeight: PropTypes.number,
-    onSortEnd: PropTypes.func
-  }
+  // static propTypes = {
+  //   items: PropTypes.array,
+  //   className: PropTypes.string,
+  //   helperClass: PropTypes.string,
+  //   itemClass: PropTypes.string,
+  //   width: PropTypes.number,
+  //   height: PropTypes.number,
+  //   itemHeight: PropTypes.number,
+  //   onSortEnd: PropTypes.func
+  // }
   render() {
     const { className, height, helperClass, itemClass, itemHeight, items, onSortEnd, width } = this.props
 
