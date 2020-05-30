@@ -1,8 +1,7 @@
 import { CSSProperties } from 'react'
 import {
   NodeType,
-  setTranslate3d,
-  setTransitionDuration,
+  setTranslate,
   clamp,
   setInlineStyles,
   setTransition,
@@ -112,7 +111,7 @@ export class Draggable {
       y: initialPosition.y - options.position.y
     }
 
-    setTranslate3d(this.element, { x: initialPosition.x, y: initialPosition.y })
+    setTranslate(this.element, { x: initialPosition.x, y: initialPosition.y })
 
     if (this.motion === Motion.Snap) this.element.focus()
 
@@ -158,18 +157,18 @@ export class Draggable {
       translate.y = clamp(this.minTranslate.y, this.maxTranslate.y, translate.y)
     }
 
-    if (this.motion === Motion.Snap) setTransitionDuration(this.element, 250)
+    if (this.motion === Motion.Snap) setTransition(this.element, 250)
 
     this.translate = translate
-    setTranslate3d(this.element, translate)
+    setTranslate(this.element, translate)
   }
 
   /**
    * Drop element at given element
    */
   drop({ x, y }: { x: number; y: number }) {
-    setTranslate3d(this.element, { x, y })
-    setTransition(this.element, `transform ${this.dropAnimation.duration}ms ${this.dropAnimation.easing}`)
+    setTranslate(this.element, { x, y })
+    setTransition(this.element, this.dropAnimation.duration, this.dropAnimation.easing)
 
     return new Promise(resolve => {
       this.element.addEventListener('transitionend', event => {

@@ -1,7 +1,6 @@
 import { Context } from '../context'
 import { SORTABLE_KEY } from '../constants'
-import { setInlineStyles, setTranslate3d, setTransition } from '../utils'
-import { number } from 'prop-types'
+import { setInlineStyles, setTranslate, setTransition, getTranslate } from '../utils'
 
 type State = { [SORTABLE_KEY]?: Sortable }
 
@@ -18,6 +17,10 @@ export class Sortable {
     return (el as SortableElementCandidate)[SORTABLE_KEY] !== undefined
   }
 
+  public isActive = false
+
+  public newIndex = this.index
+
   private isAnimating = false
 
   private translate = { x: 0, y: 0 }
@@ -33,19 +36,21 @@ export class Sortable {
     element[SORTABLE_KEY] = this
   }
 
-  private get stablePosition() {
-    const { x, y } = this.element.getBoundingClientRect()
-    const translate = window.getComputedStyle(this.element, 'translateX')
-    console.log(translate)
-  }
-
   get position() {
     if (this.isAnimating) return this.futurePosition!
     const { x, y } = this.element.getBoundingClientRect()
     return { x, y }
   }
 
+  private get stablePosition() {
+    const { x, y } = this.element.getBoundingClientRect()
+    const translate = getTranslate(this.element)
+    if (!translate) return { x, y }
+    return { x: x - translate.x, y: y - translate.y }
+  }
+
   includes(point: { x: number; y: number }, directions: { horizontal: boolean; vertical: boolean }) {
+    if (this.isActive) return false
     if (this.isAnimating) return false
     const { left, right, top, bottom } = this.element.getBoundingClientRect()
     const horizontally = left < point.x && point.x < right
@@ -58,22 +63,14 @@ export class Sortable {
   }
 
   translateTo(translate: { x: number; y: number }) {
-    // if (this.isAnimating) return
-    console.log(this.stablePosition)
-    // if (this.isAnimating) return
     if (this.translate.y === translate.y && this.translate.x === translate.x) return
-    const { x, y } = this.position
-    // this should use stable position
-    // which is the position without any transforms applied
-    // otherwise future position won't match the actual position
+    const { x, y } = this.stablePosition
     this.futurePosition = { x: x + translate.x, y: y + translate.y }
     this.translate = translate
 
-    setTranslate3d(this.element, this.translate)
     this.isAnimating = true
-    setTransition(this.element, `transform 200ms cubic-bezier(0.2, 0, 0, 1)`)
-
-    // setTimeout(() => { this.isAnimating = false }, 210)
+    setTranslate(this.element, this.translate)
+    setTransition(this.element, 200, 'cubic-bezier(0.2, 0, 0, 1)')
 
     this.element.addEventListener('transitionend', event => {
       if (event.propertyName !== 'transform') return
@@ -81,11 +78,14 @@ export class Sortable {
     })
   }
 
-  hide() {
+  activate() {
+    this.isActive = true
+    this.newIndex = this.index
     setInlineStyles(this.element, { opacity: 0, visibility: 'hidden' })
   }
 
-  show() {
-    setInlineStyles(this.element, { opacity: '', visibility: '' })
+  deactivate() {
+    this.isActive = false
+    setInlineStyles(this.element, { opacity: '', visibility: 'visible' })
   }
 }

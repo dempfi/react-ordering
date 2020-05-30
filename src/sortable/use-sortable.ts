@@ -22,8 +22,8 @@ export const useSortable = ({ index, disabled }: Options): Result => {
     const container = closest(element, isSortableContainerElement)
     const context = container?.[CONTEXT_KEY]
     const sortable = new Sortable(element, index, disabled, context)
-    context?.registerSortable(sortable)
-    return () => context?.unregisterSortable(sortable)
+    context?.register(sortable)
+    return () => context?.unregister(sortable)
   }, [])
 
   useEffect(() => {

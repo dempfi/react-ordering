@@ -104,6 +104,6 @@
     "standard-version": "^4.4.0",
     "style-loader": "^0.23.1",
     "tslib": "^1.11.1",
-    "typescript": "^3.8.3"
+    "typescript": "^3.9.3"
   }
 }

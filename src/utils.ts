@@ -1,4 +1,6 @@
-export function arrayMove(array, from, to) {
+import { CSSProperties } from 'react'
+
+export const arrayMove = <T>(array: T[], from: number, to: number): T[] => {
   // Will be deprecated soon. Consumers should install 'array-move' instead
   // https://www.npmjs.com/package/array-move
 
@@ -24,49 +26,30 @@ export const omit = <T, K extends keyof T>(obj: T, keys: K | K[]): Omit<T, K> =>
   return clone
 }
 
-export const vendorPrefix = (function () {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    // Server environment
-    return ''
-  }
-
-  // fix for: https://bugzilla.mozilla.org/show_bug.cgi?id=548397
-  // window.getComputedStyle() returns null inside an iframe with display: none
-  // in this case return an array with a fake mozilla style in it.
-  const styles = window.getComputedStyle(document.documentElement, '') || ['-moz-hidden-iframe']
-  const pre = (Array.prototype.slice
-    .call(styles)
-    .join('')
-    .match(/-(moz|webkit|ms)-/) ||
-    (styles.OLink === '' && ['', 'o']))[1]
-
-  switch (pre) {
-    case 'ms':
-      return 'ms'
-    default:
-      return pre && pre.length ? pre[0].toUpperCase() + pre.substr(1) : ''
-  }
-})()
-
-export function setInlineStyles(node, styles) {
-  Object.keys(styles).forEach(key => {
-    node.style[key] = styles[key]
-  })
+export const setInlineStyles = (node: HTMLElement, styles: CSSProperties) => {
+  const keys = Object.keys(styles) as any[]
+  for (const key of keys) node.style[key] = (styles as any)[key]
 }
 
-export function setTranslate3d(node: HTMLElement, translate) {
-  node.style[`${vendorPrefix}Transform`] = translate == null ? '' : `translate3d(${translate.x}px,${translate.y}px,0)`
+export const setTranslate = (element: HTMLElement, translate?: { x: number; y: number }) => {
+  element.style.transform = translate ? `translate(${translate.x}px,${translate.y}px)` : ''
 }
 
-export function setTransitionDuration(node, duration) {
-  node.style[`${vendorPrefix}TransitionDuration`] = duration == null ? '' : `${duration}ms`
+export const getTranslate = (element: HTMLElement) => {
+  const style = window.getComputedStyle(element).getPropertyValue('transform')
+  if (style === 'none') return
+  const parsed = style
+    .split('(')[1]
+    .split(')')[0]
+    .split(',')
+  return { x: Number(parsed[4]), y: Number(parsed[5]) }
 }
 
-export function setTransition(node, transition) {
-  node.style[`${vendorPrefix}Transition`] = transition
+export const setTransition = (element: HTMLElement, duration: number = 0, easing: string = '') => {
+  element.style.transition = `transform ${duration}ms ${easing}`
 }
 
-export function closest<T>(el: HTMLElement, fn: (el: any) => el is T): T | undefined {
+export const closest = <T>(el: HTMLElement, fn: (el: any) => el is T): T | undefined => {
   if (!el) return
   if (fn(el)) return el
   return closest<T>(el.parentNode as HTMLElement, fn)
@@ -113,7 +96,7 @@ export function offsetFromParent(
   offset = { left: 0, top: 0 }
 ): { left: number; top: number } {
   if (!node) {
-    return undefined
+    return undefined as any
   }
 
   // Get the actual offsetTop / offsetLeft value, no matter how deep the node is nested
@@ -170,7 +153,7 @@ export const NodeType = {
   Select: 'SELECT'
 }
 
-export function getTargetIndex(newIndex, prevIndex, oldIndex) {
+export const getTargetIndex = (newIndex: number, prevIndex: number, oldIndex: number) => {
   if (newIndex < oldIndex && newIndex > prevIndex) {
     return newIndex - 1
   } else if (newIndex > oldIndex && newIndex < prevIndex) {

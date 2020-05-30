@@ -9,8 +9,7 @@ import {
   omit,
   provideDisplayName,
   setTransition,
-  setTransitionDuration,
-  setTranslate3d,
+  setTranslate,
   getScrollAdjustedBoundingClientRect,
   isScrollableElement,
   getTargetIndex
@@ -41,7 +40,6 @@ export default function sortableContainer<P>(
     initialScroll?: { left: number; top: number }
     newIndex?: number
     index?: number
-    active?: Sortable
     prevIndex?: number
     backends: Backend[] = []
     draggable!: Draggable
@@ -93,17 +91,17 @@ export default function sortableContainer<P>(
         this.snap(this.index! - this.newIndex!)
         this.drop()
       }
-      this.manager.active = undefined
+      this.manager.deactivate()
     }
 
     async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
-      const node = closest(element, Sortable.isAttachedTo)!
-      backend.lifted(node)
-
-      const sortable = Sortable.of(node)!
-      const index = sortable.index
-      this.manager.active = { index, currentIndex: index }
       this.currentMotion = backend.motion
+
+      const sortableElement = closest(element, Sortable.isAttachedTo)!
+      backend.lifted(sortableElement)
+
+      const sortable = Sortable.of(sortableElement)!
+      const index = sortable.index
 
       const { hideSortableGhost, updateBeforeSortStart } = this.props
 
@@ -123,7 +121,7 @@ export default function sortableContainer<P>(
         }
       }
 
-      this.draggable = new Draggable(node, {
+      this.draggable = new Draggable(sortableElement, {
         directions: this.directions,
         position,
         lockToContainer: this.props.lockToContainerEdges,
@@ -135,6 +133,7 @@ export default function sortableContainer<P>(
       })
 
       this.draggable.attachTo(this.helperContainer)
+      this.manager.activate(sortable)
 
       this.index = index
       this.newIndex = index
@@ -143,9 +142,6 @@ export default function sortableContainer<P>(
         left: this.scrollContainer.scrollLeft,
         top: this.scrollContainer.scrollTop
       }
-
-      this.active = sortable
-      this.active.hide()
 
       this.setState({
         sorting: true,
@@ -215,24 +211,20 @@ export default function sortableContainer<P>(
       const { hideSortableGhost, dropAnimationDuration } = this.props
 
       if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
-        await this.draggable.drop(this.active!.position)
+        await this.draggable.drop(this.manager.active!.position)
       }
 
       // Remove the helper from the DOM
       this.draggable.detach()
-      this.active?.show()
+      this.manager.deactivate()
 
       this.manager.sortables.forEach(sortable => {
-        setTranslate3d(sortable.element, null)
-        setTransitionDuration(sortable.element, null)
-        // sortable.translate = undefined
+        setTranslate(sortable.element)
+        setTransition(sortable.element)
       })
 
       // Stop auto scroll
       this.autoScroller.clear()
-
-      // Update manager state
-      this.manager.active = undefined
 
       this.setState({
         sorting: false,
@@ -250,18 +242,16 @@ export default function sortableContainer<P>(
     animateNodes = () => {
       const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
       const prevIndex = this.newIndex!
-      // this.newIndex = undefined
 
-      const collidedNode = this.manager.sortables.find(sortable => {
-        if (this.active === sortable) return false
-        return sortable.includes(this.draggable.center, this.directions)
-      })
+      const collidedNode = this.manager.sortables.find(sortable =>
+        sortable.includes(this.draggable.center, this.directions)
+      )
 
       if (!collidedNode) return
       const diff = collidedNode?.index > (this.newIndex ?? this.index!) ? 0 : -1
 
       this.newIndex = collidedNode?.index + diff
-      this.manager.moveTo(collidedNode?.index)
+      this.manager.moveActiveTo(collidedNode?.index)
       if (prevIndex === this.newIndex) return
 
       this.manager.sortables.forEach((sortable, index) => {
@@ -270,12 +260,7 @@ export default function sortableContainer<P>(
         const translateY = this.directions.vertical ? height * -(sortable.index - index) : 0
         const translateX = this.directions.horizontal ? width * -(sortable.index - index) : 0
 
-        const translate = {
-          x: translateX,
-          y: translateY
-        }
-
-        sortable.translateTo(translate)
+        sortable.translateTo({ x: translateX, y: translateY })
       })
 
       if (this.isSnapMotion) {
@@ -324,7 +309,7 @@ export default function sortableContainer<P>(
         }
 
         this.draggable.translate = translate
-        setTranslate3d(this.draggable.element, this.draggable.translate)
+        setTranslate(this.draggable.element, this.draggable.translate)
         this.scrollContainer.scrollLeft += scrollX
         this.scrollContainer.scrollTop += scrollY
 
