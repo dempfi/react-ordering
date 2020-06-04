@@ -38,8 +38,6 @@ export default function sortableContainer<P>(
     _awaitingUpdateBeforeSortStart?: boolean
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     initialScroll?: { left: number; top: number }
-    newIndex?: number
-    index?: number
     prevIndex?: number
     backends: Backend[] = []
     draggable!: Draggable
@@ -88,7 +86,7 @@ export default function sortableContainer<P>(
     cancel = () => {
       // If we
       if (this.isSnapMotion) {
-        this.snap(this.index! - this.newIndex!)
+        this.snap(this.manager.active!.index - this.manager.active!.newIndex)
         this.drop()
       }
       this.manager.deactivate()
@@ -135,9 +133,6 @@ export default function sortableContainer<P>(
       this.draggable.attachTo(this.helperContainer)
       this.manager.activate(sortable)
 
-      this.index = index
-      this.newIndex = index
-
       this.initialScroll = {
         left: this.scrollContainer.scrollLeft,
         top: this.scrollContainer.scrollTop
@@ -149,8 +144,8 @@ export default function sortableContainer<P>(
       })
 
       this.props.onSortStart?.({
-        from: this.index!,
-        to: this.newIndex ?? this.index!,
+        from: this.manager.active!.index,
+        to: this.manager.active!.newIndex ?? this.manager.active!.index,
         motion: this.currentMotion!,
         helper: this.draggable.element
       })
@@ -175,17 +170,17 @@ export default function sortableContainer<P>(
     snap(shift: number) {
       const nodes = this.manager.sortables
       const { index: lastIndex } = nodes[nodes.length - 1]
-      const newIndex = this.newIndex! + shift
-      const prevIndex = this.newIndex!
+      const newIndex = this.manager.active!.newIndex + shift
+      const prevIndex = this.manager.active!.newIndex
 
       if (newIndex < 0 || newIndex > lastIndex) {
         return
       }
 
       this.prevIndex = prevIndex
-      this.newIndex = newIndex
+      this.manager.active!.newIndex = newIndex
 
-      const targetIndex = getTargetIndex(this.newIndex, this.prevIndex, this.index)
+      const targetIndex = getTargetIndex(this.manager.active!.newIndex, this.prevIndex, this.manager.active!.index)
       const target = nodes.find(({ index }) => index === targetIndex)!
       const { element: targetNode } = target
 
@@ -232,8 +227,11 @@ export default function sortableContainer<P>(
       })
 
       this.props.onSortEnd({
-        from: this.index!,
-        to: this.newIndex! > this.index! ? this.newIndex! : this.newIndex! + 1,
+        from: this.manager.active!.index,
+        to:
+          this.manager.active!.newIndex > this.manager.active!.index
+            ? this.manager.active!.newIndex
+            : this.manager.active!.newIndex + 1,
         motion: this.currentMotion!,
         helper: this.draggable.element
       })
@@ -241,18 +239,15 @@ export default function sortableContainer<P>(
 
     animateNodes = () => {
       const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
-      const prevIndex = this.newIndex!
+      const prevIndex = this.manager.active!.newIndex
 
       const collidedNode = this.manager.sortables.find(sortable =>
         sortable.includes(this.draggable.center, this.directions)
       )
 
       if (!collidedNode) return
-      const diff = collidedNode?.index > (this.newIndex ?? this.index!) ? 0 : -1
-
-      this.newIndex = collidedNode?.index + diff
       this.manager.moveActiveTo(collidedNode?.index)
-      if (prevIndex === this.newIndex) return
+      if (prevIndex === this.manager.active!.newIndex) return
 
       this.manager.sortables.forEach((sortable, index) => {
         const height = this.draggable.height + this.draggable.margins.y
@@ -265,14 +260,14 @@ export default function sortableContainer<P>(
 
       if (this.isSnapMotion) {
         // If keyboard sorting, we want the user input to dictate index, not location of the helper
-        this.newIndex = prevIndex
+        this.manager.active!.newIndex = prevIndex
       }
 
       const oldIndex = this.isSnapMotion ? this.prevIndex : prevIndex
 
-      if (this.newIndex === oldIndex) return
+      if (this.manager.active!.newIndex === oldIndex) return
       this.props.onSortOver?.({
-        from: this.index!,
+        from: this.manager.active!.index!,
         to: oldIndex!,
         motion: this.currentMotion!,
         helper: this.draggable.element
