@@ -210,6 +210,7 @@ export default function sortableContainer<P>(
       }
 
       // Remove the helper from the DOM
+      const { index, newIndex } = this.manager.active!
       this.draggable.detach()
       this.manager.deactivate()
 
@@ -227,11 +228,8 @@ export default function sortableContainer<P>(
       })
 
       this.props.onSortEnd({
-        from: this.manager.active!.index,
-        to:
-          this.manager.active!.newIndex > this.manager.active!.index
-            ? this.manager.active!.newIndex
-            : this.manager.active!.newIndex + 1,
+        from: index,
+        to: newIndex > index ? newIndex : newIndex + 1,
         motion: this.currentMotion!,
         helper: this.draggable.element
       })
