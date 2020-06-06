@@ -159,8 +159,8 @@ class ListWrapper extends Component {
   //   itemClass: PropTypes.string,
   //   width: PropTypes.number,
   //   height: PropTypes.number,
-  //   onSortStart: PropTypes.func,
-  //   onSortEnd: PropTypes.func,
+  //   onStart: PropTypes.func,
+  //   onEnd: PropTypes.func,
   //   component: PropTypes.func,
   //   shouldUseDragHandle: PropTypes.bool,
   //   disabledItems: PropTypes.arrayOf(PropTypes.string)
@@ -173,19 +173,19 @@ class ListWrapper extends Component {
     height: 600
   }
 
-  onSortStart = sortEvent => {
-    const { onSortStart } = this.props
+  onStart = sortEvent => {
+    const { onStart } = this.props
     this.setState({ isSorting: true })
 
     document.body.style.cursor = 'grabbing'
 
-    if (onSortStart) {
-      onSortStart(sortEvent)
+    if (onStart) {
+      onStart(sortEvent)
     }
   }
 
-  onSortEnd = ({ from, to }) => {
-    const { onSortEnd } = this.props
+  onEnd = ({ from, to }) => {
+    const { onEnd } = this.props
     const { items } = this.state
 
     this.setState({
@@ -195,8 +195,8 @@ class ListWrapper extends Component {
 
     document.body.style.cursor = ''
 
-    if (onSortEnd) {
-      onSortEnd(sortEvent)
+    if (onEnd) {
+      onEnd(sortEvent)
     }
   }
 
@@ -206,10 +206,10 @@ class ListWrapper extends Component {
     const props = {
       isSorting,
       items,
-      onSortEnd: this.onSortEnd,
-      onSortStart: this.onSortStart,
+      onEnd: this.onEnd,
+      onStart: this.onStart,
       ref: 'component',
-      useDragHandle: this.props.shouldUseDragHandle
+      withHandle: this.props.shouldUseDragHandle
     }
 
     return <Component {...this.props} {...props} />
@@ -334,10 +334,10 @@ class TableWrapper extends Component {
   //   width: PropTypes.number,
   //   height: PropTypes.number,
   //   itemHeight: PropTypes.number,
-  //   onSortEnd: PropTypes.func
+  //   onEnd: PropTypes.func
   // }
   render() {
-    const { className, height, helperClass, itemClass, itemHeight, items, onSortEnd, width } = this.props
+    const { className, height, helperClass, itemClass, itemHeight, items, onEnd, width } = this.props
 
     return (
       <SortableTable
@@ -346,7 +346,7 @@ class TableWrapper extends Component {
         headerHeight={itemHeight}
         height={height}
         helperClass={helperClass}
-        onSortEnd={onSortEnd}
+        onEnd={onEnd}
         rowClassName={itemClass}
         rowCount={items.length}
         rowGetter={({ index }) => items[index]}
@@ -486,7 +486,7 @@ storiesOf('General | Layout / Grid', module)
           helperClass={style.stylizedHelper}
           className={classNames(style.list, style.stylizedList, style.grid, style.gridVariableSized)}
           itemClass={classNames(style.stylizedItem, style.gridItem, style.gridItemVariableSized)}
-          onSortStart={({ node, helper }, event) => {
+          onStart={({ node, helper }, event) => {
             const nodeBoundingClientRect = node.getBoundingClientRect()
             const helperWrapperNode = helper.childNodes[0]
             const transformOrigin = {
@@ -496,7 +496,7 @@ storiesOf('General | Layout / Grid', module)
 
             helperWrapperNode.style.transformOrigin = `${transformOrigin.x}% ${transformOrigin.y}%`
           }}
-          onSortOver={({ nodes, newIndex, index, helper }) => {
+          onOver={({ nodes, newIndex, index, helper }) => {
             const finalNodes = arrayMove(nodes, index, newIndex)
             const oldNode = nodes[index].node
             const newNode = nodes[newIndex].node
@@ -514,7 +514,7 @@ storiesOf('General | Layout / Grid', module)
               wrapperNode.style.transformOrigin = newIndex > i ? '0 0' : '100% 0'
             })
           }}
-          onSortEnd={({ nodes }) => {
+          onEnd={({ nodes }) => {
             nodes.forEach(({ node }) => {
               const wrapperNode = node.querySelector(`.${style.wrapper}`)
 
@@ -557,7 +557,7 @@ storiesOf('General | Configuration / Options', module)
         <ListWrapper
           component={SortableList}
           items={getItems(50, 59)}
-          pressDelay={200}
+          pressDelay={{ time: 200 }}
           helperClass={style.stylizedHelper}
         />
       </div>
@@ -569,7 +569,7 @@ storiesOf('General | Configuration / Options', module)
         <ListWrapper
           component={SortableList}
           items={getItems(50, 50)}
-          distance={20}
+          moveDelay={20}
           helperClass={style.stylizedHelper}
         />
       </div>
@@ -698,7 +698,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-window', module)
           itemHeight={59}
           helperClass={style.stylizedHelper}
           // FIXME seems broken
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Window that the order of the items has changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList
@@ -716,7 +716,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-window', module)
           component={SortableReactWindow(VariableSizeList)}
           items={getItems(500)}
           helperClass={style.stylizedHelper}
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Window that the item heights have changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList
@@ -749,7 +749,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-virtualized', mo
           items={getItems(500)}
           itemHeight={89}
           helperClass={style.stylizedHelper}
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Virtualized that the item heights have changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList

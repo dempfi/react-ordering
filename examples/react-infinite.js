@@ -30,7 +30,7 @@ class App extends Component {
     ]
   }
 
-  onSortEnd = ({ oldIndex, newIndex }) => {
+  onEnd = ({ oldIndex, newIndex }) => {
     this.setState(({ items }) => ({
       items: arrayMove(items, oldIndex, newIndex)
     }))
@@ -39,7 +39,7 @@ class App extends Component {
   render() {
     const { items } = this.state
 
-    return <SortableInfiniteList items={items} onSortEnd={this.onSortEnd} />
+    return <SortableInfiniteList items={items} onEnd={this.onEnd} />
   }
 }
 

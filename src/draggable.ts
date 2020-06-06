@@ -9,16 +9,14 @@ import {
   getContainerGridGap
 } from './utils'
 import { Motion } from './backend'
+import { Settings } from './settings'
 
 type Options = {
-  directions: { horizontal: boolean; vertical: boolean }
   position: { x: number; y: number }
-  lockToContainer?: boolean
   motion: Motion
   container: HTMLElement
   scrollContainer: HTMLElement
-  helperStyle?: CSSProperties
-  helperClass?: string
+  settings: Settings
 }
 
 export class Draggable {
@@ -66,23 +64,17 @@ export class Draggable {
   }
 
   readonly element: HTMLElement
-  private dropAnimation = {
-    duration: 250,
-    easing: 'cubic-bezier(.2,1,.1,1)'
-  }
-  private directions: { horizontal: boolean; vertical: boolean }
+  private settings: Settings
   private initialPointerPositionOnElement: { x: number; y: number }
   private motion: Motion
-  private lockToContainer: boolean
   private container: HTMLElement
 
   constructor(element: HTMLElement, options: Options) {
     this.element = Draggable.clone(element)
+    this.settings = options.settings
     this.motion = options.motion
     this.container = options.container
-    this.directions = options.directions
     this.initialPointerPositionOnElement = options.position
-    this.lockToContainer = options.lockToContainer ?? false
 
     const margin = getElementMargin(element)
     const gridGap = getContainerGridGap(this.container)
@@ -121,21 +113,21 @@ export class Draggable {
     this.minTranslate = { x: containerBounds.left, y: containerBounds.top }
     this.maxTranslate = { x: containerBounds.right - this.width, y: containerBounds.bottom - this.height }
 
-    if (this.directions.vertical && !this.directions.horizontal) {
+    if (this.settings.directions.vertical && !this.settings.directions.horizontal) {
       this.minTranslate.x = initialPosition.x
       this.maxTranslate.x = initialPosition.x
-    } else if (this.directions.horizontal && !this.directions.vertical) {
+    } else if (this.settings.directions.horizontal && !this.settings.directions.vertical) {
       this.minTranslate.y = initialPosition.y
       this.maxTranslate.y = initialPosition.y
     }
 
-    if (options.helperClass) {
-      options.helperClass.split(' ').forEach(className => this.element.classList.add(className))
-    }
+    // if (options.helperClass) {
+    //   options.helperClass.split(' ').forEach(className => this.element.classList.add(className))
+    // }
 
-    if (options.helperStyle) {
-      setInlineStyles(this.element, options.helperStyle)
-    }
+    // if (options.helperStyle) {
+    //   setInlineStyles(this.element, options.helperStyle)
+    // }
   }
 
   attachTo(container: HTMLElement) {
@@ -152,7 +144,7 @@ export class Draggable {
       y: position.y + this.initialPointerPositionOnElement.y
     }
 
-    if (this.lockToContainer) {
+    if (this.settings.lockToContainerEdges) {
       translate.x = clamp(this.minTranslate.x, this.maxTranslate.x, translate.x)
       translate.y = clamp(this.minTranslate.y, this.maxTranslate.y, translate.y)
     }
@@ -168,7 +160,7 @@ export class Draggable {
    */
   drop({ x, y }: { x: number; y: number }) {
     setTranslate(this.element, { x, y })
-    setTransition(this.element, this.dropAnimation.duration, this.dropAnimation.easing)
+    setTransition(this.element, this.settings.animations.drop.duration, this.settings.animations.drop.easing)
 
     return new Promise(resolve => {
       this.element.addEventListener('transitionend', event => {

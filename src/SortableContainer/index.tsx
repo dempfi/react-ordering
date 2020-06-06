@@ -16,13 +16,13 @@ import {
 } from '../utils'
 
 import { AutoScroller } from '../auto-scroller'
-import { defaultProps, orderingProps } from './props'
 
-import { WrappedComponent, Config, SortableContainerProps } from '../types'
+import { WrappedComponent, Config } from '../types'
 import { Sortable } from '../sortable'
 import { BackendDelegate, Backend, Motion, MouseBackend, TouchBackend, KeyboardBackend } from '../backend'
 import { Draggable } from '../draggable'
 import { CONTEXT_KEY } from '../constants'
+import { Options, Settings } from '../settings'
 
 type SortableContainerElement = HTMLElement & { [CONTEXT_KEY]: Context }
 
@@ -30,12 +30,12 @@ export default function sortableContainer<P>(
   WrappedComponent: WrappedComponent<P>,
   config: Config = { withRef: false }
 ) {
-  return class WithSortableContainer extends React.Component<SortableContainerProps> implements BackendDelegate {
+  return class WithSortableContainer extends React.Component<Options> implements BackendDelegate {
     manager = new Context()
     container!: SortableContainerElement
     scrollContainer!: HTMLElement
     autoScroller!: AutoScroller
-    _awaitingUpdateBeforeSortStart?: boolean
+    awaitingUpdateBeforeStart?: boolean
     state: { sorting: boolean; sortingIndex?: number } = { sorting: false }
     initialScroll?: { left: number; top: number }
     prevIndex?: number
@@ -44,15 +44,14 @@ export default function sortableContainer<P>(
     currentMotion?: Motion
 
     static displayName = provideDisplayName('sortableList', WrappedComponent)
-    static defaultProps = defaultProps
+
     private lastPosition = { x: Infinity, y: Infinity }
 
-    get directions() {
-      if (!this.props.axis) return { horizontal: false, vertical: true }
-      return {
-        horizontal: this.props.axis.indexOf('x') >= 0,
-        vertical: this.props.axis.indexOf('y') >= 0
-      }
+    settings: Settings
+
+    constructor(props: Options) {
+      super(props)
+      this.settings = new Settings(props)
     }
 
     get isSnapMotion() {
@@ -101,33 +100,23 @@ export default function sortableContainer<P>(
       const sortable = Sortable.of(sortableElement)!
       const index = sortable.index
 
-      const { hideSortableGhost, updateBeforeSortStart } = this.props
-
-      if (typeof updateBeforeSortStart === 'function') {
-        this._awaitingUpdateBeforeSortStart = true
-
-        try {
-          await updateBeforeSortStart({
-            from: index,
-            to: index,
-            motion: this.currentMotion!,
-            // FIXME, there's no helper yer
-            helper: this.draggable?.element
-          })
-        } finally {
-          this._awaitingUpdateBeforeSortStart = false
-        }
+      try {
+        this.awaitingUpdateBeforeStart = true
+        await this.settings.updateBeforeStart({
+          from: index,
+          to: index,
+          motion: this.currentMotion!
+        })
+      } finally {
+        this.awaitingUpdateBeforeStart = false
       }
 
       this.draggable = new Draggable(sortableElement, {
-        directions: this.directions,
         position,
-        lockToContainer: this.props.lockToContainerEdges,
+        settings: this.settings,
         motion: this.currentMotion,
         container: this.container,
-        scrollContainer: this.scrollContainer,
-        helperClass: this.props.helperClass,
-        helperStyle: this.props.helperStyle
+        scrollContainer: this.scrollContainer
       })
 
       this.draggable.attachTo(this.helperContainer)
@@ -143,20 +132,19 @@ export default function sortableContainer<P>(
         sortingIndex: index
       })
 
-      this.props.onSortStart?.({
+      this.settings.onStart?.({
         from: this.manager.active!.index,
         to: this.manager.active!.newIndex ?? this.manager.active!.index,
-        motion: this.currentMotion!,
-        helper: this.draggable.element
+        motion: this.currentMotion!
       })
     }
 
     move(position: { x: number; y: number }) {
-      if (this.directions.horizontal && this.directions.vertical) {
+      if (this.settings.directions.horizontal && this.settings.directions.vertical) {
         if (this.lastPosition.x === position.x && this.lastPosition.y === position.y) return
-      } else if (this.directions.vertical) {
+      } else if (this.settings.directions.vertical) {
         if (this.lastPosition.y === position.y) return
-      } else if (this.directions.horizontal) {
+      } else if (this.settings.directions.horizontal) {
         if (this.lastPosition.x === position.x) return
       }
 
@@ -195,17 +183,19 @@ export default function sortableContainer<P>(
 
       const shouldAdjustForSize = prevIndex < newIndex
       const sizeAdjustment = {
-        x: shouldAdjustForSize && this.directions.horizontal ? targetNode.offsetWidth - this.draggable.width : 0,
-        y: shouldAdjustForSize && this.directions.vertical ? targetNode.offsetHeight - this.draggable.height : 0
+        x:
+          shouldAdjustForSize && this.settings.directions.horizontal
+            ? targetNode.offsetWidth - this.draggable.width
+            : 0,
+        y:
+          shouldAdjustForSize && this.settings.directions.vertical ? targetNode.offsetHeight - this.draggable.height : 0
       }
 
       this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
     }
 
     async drop() {
-      const { hideSortableGhost, dropAnimationDuration } = this.props
-
-      if (dropAnimationDuration && this.currentMotion !== Motion.Snap) {
+      if (this.currentMotion !== Motion.Snap) {
         await this.draggable.drop(this.manager.active!.position)
       }
 
@@ -227,20 +217,18 @@ export default function sortableContainer<P>(
         sortingIndex: null
       })
 
-      this.props.onSortEnd({
+      this.settings.onEnd({
         from: index,
         to: newIndex > index ? newIndex : newIndex + 1,
-        motion: this.currentMotion!,
-        helper: this.draggable.element
+        motion: this.currentMotion!
       })
     }
 
     animateNodes = () => {
-      const { outOfTheWayAnimationDuration, outOfTheWayAnimationEasing } = this.props
       const prevIndex = this.manager.active!.newIndex
 
       const collidedNode = this.manager.sortables.find(sortable =>
-        sortable.includes(this.draggable.center, this.directions)
+        sortable.includes(this.draggable.center, this.settings.directions)
       )
 
       if (!collidedNode) return
@@ -250,8 +238,8 @@ export default function sortableContainer<P>(
       this.manager.sortables.forEach((sortable, index) => {
         const height = this.draggable.height + this.draggable.margins.y
         const width = this.draggable.width + this.draggable.margins.x
-        const translateY = this.directions.vertical ? height * -(sortable.index - index) : 0
-        const translateX = this.directions.horizontal ? width * -(sortable.index - index) : 0
+        const translateY = this.settings.directions.vertical ? height * -(sortable.index - index) : 0
+        const translateX = this.settings.directions.horizontal ? width * -(sortable.index - index) : 0
 
         sortable.translateTo({ x: translateX, y: translateY })
       })
@@ -264,18 +252,15 @@ export default function sortableContainer<P>(
       const oldIndex = this.isSnapMotion ? this.prevIndex : prevIndex
 
       if (this.manager.active!.newIndex === oldIndex) return
-      this.props.onSortOver?.({
+      this.settings.onOver?.({
         from: this.manager.active!.index!,
         to: oldIndex!,
-        motion: this.currentMotion!,
-        helper: this.draggable.element
+        motion: this.currentMotion!
       })
     }
 
     autoScroll = () => {
-      const { disableAutoScroll } = this.props
-
-      if (disableAutoScroll) {
+      if (this.settings.withoutAutoscroll) {
         this.autoScroller.clear()
         return
       }
@@ -285,7 +270,7 @@ export default function sortableContainer<P>(
         let scrollX = 0
         let scrollY = 0
 
-        if (this.directions.horizontal) {
+        if (this.settings.directions.horizontal) {
           translate.x = Math.min(
             this.draggable.maxTranslate.x,
             Math.max(this.draggable.minTranslate.x, this.draggable.translate.x)
@@ -293,7 +278,7 @@ export default function sortableContainer<P>(
           scrollX = this.draggable.translate.x - translate.x
         }
 
-        if (this.directions.vertical) {
+        if (this.settings.directions.vertical) {
           translate.y = Math.min(
             this.draggable.maxTranslate.y,
             Math.max(this.draggable.minTranslate.y, this.draggable.translate.y)
@@ -325,11 +310,11 @@ export default function sortableContainer<P>(
     render() {
       const ref = config.withRef ? 'wrappedInstance' : null
 
-      return <WrappedComponent ref={ref} {...omit(this.props, orderingProps)} />
+      return <WrappedComponent ref={ref} {...this.props} />
     }
 
     get helperContainer() {
-      const { helperContainer } = this.props
+      const { helperContainer } = this.settings
 
       if (typeof helperContainer === 'function') {
         return helperContainer()
@@ -350,18 +335,15 @@ export default function sortableContainer<P>(
     }
 
     get pressDelay() {
-      return {
-        time: this.props.pressDelay!,
-        distanceThreshold: this.props.pressThreshold!
-      }
+      return this.settings.pressDelay
     }
 
     get moveDelay() {
-      return this.props.distance
+      return this.settings.moveDelay
     }
 
     canLift(element: HTMLElement) {
-      if (this.props.shouldCancelStart!(element)) return false
+      if (!this.settings.canSort(element)) return false
       if (this.state.sorting) return false
 
       const sortableElement = closest(element, Sortable.isAttachedTo)
@@ -370,7 +352,7 @@ export default function sortableContainer<P>(
       const sortable = Sortable.of(sortableElement)!
       if (!this.nodeIsChild(sortable) || sortable.disabled) return false
 
-      if (this.props.useDragHandle && !closest(element, isSortableHandleElement)) return false
+      if (this.settings.withHandle && !closest(element, isSortableHandleElement)) return false
       return true
     }
   }

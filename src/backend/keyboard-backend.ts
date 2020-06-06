@@ -1,11 +1,18 @@
+import { KEYCODE } from '../utils'
 import { Backend, Motion } from './backend'
-import { defaultKeyCodes } from '../SortableContainer/props'
 
 type ElementEvent = Omit<KeyboardEvent, 'target'> & { target: HTMLElement }
 
 export class KeyboardBackend extends Backend {
   motion = Motion.Snap
-  private keyCodes = defaultKeyCodes
+  private keyCodes = {
+    lift: [KEYCODE.SPACE],
+    drop: [KEYCODE.SPACE],
+    cancel: [KEYCODE.ESC],
+    up: [KEYCODE.UP, KEYCODE.LEFT],
+    down: [KEYCODE.DOWN, KEYCODE.RIGHT]
+  }
+
   private initialFocusedNode?: HTMLElement
 
   attach() {

@@ -33,7 +33,7 @@ class TableWithSortableColumns extends Component {
     ]
   }
 
-  onSortEnd = ({ oldIndex, newIndex }) => {
+  onEnd = ({ oldIndex, newIndex }) => {
     this.setState(({ cols }) => ({
       cols: arrayMove(cols, oldIndex, newIndex)
     }))
@@ -45,7 +45,7 @@ class TableWithSortableColumns extends Component {
   }
 
   renderHeaderRow = params => {
-    return <SortableHeaderRowRenderer {...params} axis='x' onSortEnd={this.onSortEnd} />
+    return <SortableHeaderRowRenderer {...params} axis='x' onEnd={this.onEnd} />
   }
 
   render() {
