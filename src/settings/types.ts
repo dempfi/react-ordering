@@ -34,7 +34,7 @@ export type Options = {
 
   canSort?: (element: HTMLElement) => boolean
 
-  onBeforeStart?: (event: SortEvent) => void | Promise<void>
+  updateBeforeStart?: (event: SortEvent) => void | Promise<void>
   onStart?: (event: SortEvent) => void
   onMove?: (event: SortEvent) => void
   onOver?: (event: SortEvent) => void

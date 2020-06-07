@@ -2,7 +2,7 @@ import React, { Component } from 'react'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
-import { SortableContainer, useHandle, useSortable } from '../index'
+import { SortableContainer, useHandle, useSortable, useSorter } from '../index'
 import arrayMove from 'array-move'
 import VirtualList from 'react-tiny-virtual-list'
 import { FixedSizeList, VariableSizeList } from 'react-window'
@@ -77,34 +77,42 @@ const Item = ({
   )
 }
 
-const SortableList = SortableContainer(
-  ({ className, items, disabledItems = [], itemClass, isSorting, shouldUseDragHandle, type, ...rest }) => {
-    return (
-      <div className={className} {...rest}>
-        {items.map(({ value, height }, index) => {
-          const disabled = disabledItems.includes(value)
+const SortableList = ({
+  className,
+  items,
+  disabledItems = [],
+  itemClass,
+  isSorting,
+  shouldUseDragHandle,
+  type,
+  ...rest
+}) => {
+  const ref = useSorter(rest)
+  return (
+    <div className={className} ref={ref}>
+      {items.map(({ value, height }, index) => {
+        const disabled = disabledItems.includes(value)
 
-          return (
-            <Item
-              tabbable
-              key={`item-${value}`}
-              disabled={disabled}
-              isDisabled={disabled}
-              className={itemClass}
-              index={index}
-              itemIndex={index}
-              value={value}
-              height={height}
-              shouldUseDragHandle={shouldUseDragHandle}
-              type={type}
-              isSorting={isSorting}
-            />
-          )
-        })}
-      </div>
-    )
-  }
-)
+        return (
+          <Item
+            tabbable
+            key={`item-${value}`}
+            disabled={disabled}
+            isDisabled={disabled}
+            className={itemClass}
+            index={index}
+            itemIndex={index}
+            value={value}
+            height={height}
+            shouldUseDragHandle={shouldUseDragHandle}
+            type={type}
+            isSorting={isSorting}
+          />
+        )
+      })}
+    </div>
+  )
+}
 
 class SortableListWithCustomContainer extends React.Component {
   state = {
@@ -208,7 +216,7 @@ class ListWrapper extends Component {
       items,
       onEnd: this.onEnd,
       onStart: this.onStart,
-      ref: 'component',
+      // ref: 'component',
       withHandle: this.props.shouldUseDragHandle
     }
 

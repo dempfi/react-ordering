@@ -1,9 +1,10 @@
 https://www.npmjs.com/search?q=react-dnd-sorter
 TODO:
 
-- [ ] Pass options around as a settings object
+- [x] Pass options around as a settings object
 - [ ] Convert main HOC into a hook
 - [ ] Fix grid
+- [ ] Keyboard sorting
 - [ ] Website
 
 # This is a fork from awesome [react-sortable-hoc](https://github.com/clauderic/react-sortable-hoc) by [clauderic](https://github.com/clauderic). All credit should go to them.

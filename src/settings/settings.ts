@@ -60,7 +60,7 @@ export class Settings {
   }
 
   get updateBeforeStart() {
-    return this.options.onBeforeStart ?? (() => {})
+    return this.options.updateBeforeStart ?? (() => {})
   }
 
   get onStart() {

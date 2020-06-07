@@ -81,11 +81,11 @@ export class Sortable {
   activate() {
     this.isActive = true
     this.newIndex = this.index
-    setInlineStyles(this.element, { opacity: 0, visibility: 'hidden' })
+    setInlineStyles(this.element, { opacity: 0.5, visibility: 'visible', zIndex: 7, backgroundColor: 'red' })
   }
 
   deactivate() {
     this.isActive = false
-    setInlineStyles(this.element, { opacity: '', visibility: 'visible' })
+    setInlineStyles(this.element, { opacity: '', visibility: 'visible', backgroundColor: 'white' })
   }
 }

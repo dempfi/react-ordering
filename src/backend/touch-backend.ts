@@ -1,5 +1,4 @@
 import { Backend, Motion } from './backend'
-import { NodeType } from '../utils'
 
 type ElementEvent = Omit<TouchEvent, 'target'> & { target: HTMLElement }
 

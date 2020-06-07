@@ -1,6 +1,21 @@
 import { Sortable } from './sortable'
 
+type Listener = () => void
+
 export class Context {
+  private static listeners: Listener[] = []
+
+  static subscribe(fn: () => void) {
+    this.listeners.push(fn)
+    return () => {
+      Context.listeners = this.listeners.filter(l => l !== fn)
+    }
+  }
+
+  notify() {
+    Context.listeners.forEach(fn => fn())
+  }
+
   readonly sortables: Sortable[] = []
 
   get active() {
