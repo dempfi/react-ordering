@@ -8,7 +8,6 @@ export const useSorter = (options: Options) => {
 
   useEffect(() => {
     if (!ref.current) return
-    console.log(ref.current)
     sorter.current.attach(ref.current)
     return () => sorter.current.detach()
   }, [])

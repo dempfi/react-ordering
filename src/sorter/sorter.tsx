@@ -65,6 +65,7 @@ export class Sorter implements BackendDelegate {
   }
 
   detach() {
+    delete this.container[CONTEXT_KEY]
     this.draggable?.detach()
     this.backends.forEach(b => b.detach())
     this.backends = []
@@ -84,7 +85,6 @@ export class Sorter implements BackendDelegate {
   }
 
   async lift(element: HTMLElement, position: { x: number; y: number }, backend: Backend) {
-    console.log('LIFT')
     this.currentMotion = backend.motion
 
     const sortableElement = closest(element, Sortable.isAttachedTo)!
@@ -112,9 +112,8 @@ export class Sorter implements BackendDelegate {
       scrollContainer: this.scrollContainer
     })
 
-    this.draggable.attachTo(this.helperContainer)
+    this.draggable.attachTo(document.body)
     this.context.activate(sortable)
-    console.log(this.helperContainer)
 
     this.initialScroll = {
       left: this.scrollContainer.scrollLeft,
@@ -129,12 +128,11 @@ export class Sorter implements BackendDelegate {
   }
 
   move(position: { x: number; y: number }) {
-    console.log('MOVE')
-    if (this.settings.directions.horizontal && this.settings.directions.vertical) {
+    if (this.settings.axis.x && this.settings.axis.y) {
       if (this.lastPosition.x === position.x && this.lastPosition.y === position.y) return
-    } else if (this.settings.directions.vertical) {
+    } else if (this.settings.axis.y) {
       if (this.lastPosition.y === position.y) return
-    } else if (this.settings.directions.horizontal) {
+    } else if (this.settings.axis.x) {
       if (this.lastPosition.x === position.x) return
     }
 
@@ -173,8 +171,8 @@ export class Sorter implements BackendDelegate {
 
     const shouldAdjustForSize = prevIndex < newIndex
     const sizeAdjustment = {
-      x: shouldAdjustForSize && this.settings.directions.horizontal ? targetNode.offsetWidth - this.draggable.width : 0,
-      y: shouldAdjustForSize && this.settings.directions.vertical ? targetNode.offsetHeight - this.draggable.height : 0
+      x: shouldAdjustForSize && this.settings.axis.x ? targetNode.offsetWidth - this.draggable.width : 0,
+      y: shouldAdjustForSize && this.settings.axis.y ? targetNode.offsetHeight - this.draggable.height : 0
     }
 
     this.move({ x: targetPosition.left + sizeAdjustment.x, y: targetPosition.top + sizeAdjustment.y })
@@ -209,7 +207,7 @@ export class Sorter implements BackendDelegate {
     const prevIndex = this.context.active!.newIndex
 
     const collidedNode = this.context.sortables.find(sortable =>
-      sortable.includes(this.draggable.center, this.settings.directions)
+      sortable.includes(this.draggable.center, this.settings.axis)
     )
 
     if (!collidedNode) return
@@ -219,8 +217,8 @@ export class Sorter implements BackendDelegate {
     this.context.sortables.forEach((sortable, index) => {
       const height = this.draggable.height + this.draggable.margins.y
       const width = this.draggable.width + this.draggable.margins.x
-      const translateY = this.settings.directions.vertical ? height * -(sortable.index - index) : 0
-      const translateX = this.settings.directions.horizontal ? width * -(sortable.index - index) : 0
+      const translateY = this.settings.axis.y ? height * -(sortable.index - index) : 0
+      const translateX = this.settings.axis.x ? width * -(sortable.index - index) : 0
 
       sortable.translateTo({ x: translateX, y: translateY })
     })
@@ -251,7 +249,7 @@ export class Sorter implements BackendDelegate {
       let scrollX = 0
       let scrollY = 0
 
-      if (this.settings.directions.horizontal) {
+      if (this.settings.axis.x) {
         translate.x = Math.min(
           this.draggable.maxTranslate.x,
           Math.max(this.draggable.minTranslate.x, this.draggable.translate.x)
@@ -259,7 +257,7 @@ export class Sorter implements BackendDelegate {
         scrollX = this.draggable.translate.x - translate.x
       }
 
-      if (this.settings.directions.vertical) {
+      if (this.settings.axis.y) {
         translate.y = Math.min(
           this.draggable.maxTranslate.y,
           Math.max(this.draggable.minTranslate.y, this.draggable.translate.y)
@@ -282,10 +280,6 @@ export class Sorter implements BackendDelegate {
       height: this.draggable.height,
       width: this.draggable.width
     })
-  }
-
-  get helperContainer() {
-    return document.body
   }
 
   get containerScrollDelta() {

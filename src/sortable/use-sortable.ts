@@ -18,14 +18,16 @@ export const useSortable = ({ index, disabled }: Options): Result => {
   const [context, setContext] = useState<Context>()
   const [isDragging, setIsDragging] = useState(false)
 
-  useEffect(() => {
-    return Context.subscribe(() => {
-      if (!ref.current) return
-      const element = ref.current
-      const container = closest(element, Sorter.isAttachedTo)
-      setContext(container?.[CONTEXT_KEY])
-    })
-  }, [])
+  useEffect(
+    () =>
+      Context.subscribe(() => {
+        if (!ref.current) return
+        const element = ref.current
+        const container = closest(element, Sorter.isAttachedTo)
+        setContext(container?.[CONTEXT_KEY])
+      }),
+    []
+  )
 
   useEffect(() => {
     if (!ref.current) return

@@ -1,4 +1,4 @@
-import { Options, Axis, SortEvent } from './types'
+import { Options } from './types'
 import { NodeType, closest } from '../utils'
 
 export class Settings {
@@ -11,19 +11,18 @@ export class Settings {
   get withoutAutoscroll() {
     return this.options.withoutAutoscroll ?? false
   }
-  get hideSortableGhost() {
-    return this.options.hideSortableGhost ?? true
+
+  get withoutSortableGhost() {
+    return this.options.withoutSortableGhost ?? true
   }
+
   get lockToContainerEdges() {
     return this.options.lockToContainerEdges ?? false
   }
 
-  get directions() {
-    if (!this.options.axis) return { horizontal: false, vertical: true }
-    return {
-      horizontal: this.options.axis.indexOf('x') >= 0,
-      vertical: this.options.axis.indexOf('y') >= 0
-    }
+  get axis() {
+    const axis = this.options.axis ?? 'y'
+    return { x: axis.indexOf('x') >= 0, y: axis.indexOf('y') >= 0 }
   }
 
   get animations() {

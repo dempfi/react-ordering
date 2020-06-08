@@ -40,7 +40,7 @@ export type Options = {
   onOver?: (event: SortEvent) => void
   onEnd: (event: SortEvent) => void
 
-  hideSortableGhost?: boolean
+  withoutSortableGhost?: boolean
   lockToContainerEdges?: boolean
   getHelperDimensions?: (event: SortEvent) => Dimensions
 }

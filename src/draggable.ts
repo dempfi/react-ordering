@@ -113,10 +113,10 @@ export class Draggable {
     this.minTranslate = { x: containerBounds.left, y: containerBounds.top }
     this.maxTranslate = { x: containerBounds.right - this.width, y: containerBounds.bottom - this.height }
 
-    if (this.settings.directions.vertical && !this.settings.directions.horizontal) {
+    if (this.settings.axis.y && !this.settings.axis.x) {
       this.minTranslate.x = initialPosition.x
       this.maxTranslate.x = initialPosition.x
-    } else if (this.settings.directions.horizontal && !this.settings.directions.vertical) {
+    } else if (this.settings.axis.x && !this.settings.axis.y) {
       this.minTranslate.y = initialPosition.y
       this.maxTranslate.y = initialPosition.y
     }

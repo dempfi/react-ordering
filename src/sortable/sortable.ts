@@ -49,16 +49,16 @@ export class Sortable {
     return { x: x - translate.x, y: y - translate.y }
   }
 
-  includes(point: { x: number; y: number }, directions: { horizontal: boolean; vertical: boolean }) {
+  includes(point: { x: number; y: number }, axis: { x: boolean; y: boolean }) {
     if (this.isActive) return false
     if (this.isAnimating) return false
     const { left, right, top, bottom } = this.element.getBoundingClientRect()
     const horizontally = left < point.x && point.x < right
     const vertically = top < point.y && point.y < bottom
 
-    if (directions.vertical && directions.horizontal) return horizontally && vertically
-    else if (directions.vertical) return vertically
-    else if (directions.horizontal) return horizontally
+    if (axis.y && axis.x) return horizontally && vertically
+    else if (axis.y) return vertically
+    else if (axis.x) return horizontally
     return false
   }
 

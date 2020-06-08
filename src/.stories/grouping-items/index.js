@@ -21,7 +21,7 @@ class GroupedItems extends React.Component {
         selectedItems={selectedItems}
         onItemSelect={this.handleItemSelect}
         canSort={this.handleCanSort}
-        updateBeforeSortStart={this.onBeforeStart}
+        updateBeforeSortStart={this.updateBeforeStart}
         onStart={this.handleSortStart}
         onEnd={this.handleSortEnd}
         moveDelay={3}
@@ -46,7 +46,7 @@ class GroupedItems extends React.Component {
     return true
   }
 
-  onBeforeStart = ({ index }) => {
+  updateBeforeStart = ({ index }) => {
     return new Promise(resolve =>
       this.setState(
         ({ items }) => ({

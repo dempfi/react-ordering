@@ -2,7 +2,7 @@ https://www.npmjs.com/search?q=react-dnd-sorter
 TODO:
 
 - [x] Pass options around as a settings object
-- [ ] Convert main HOC into a hook
+- [x] Convert main HOC into a hook
 - [ ] Fix grid
 - [ ] Keyboard sorting
 - [ ] Website
