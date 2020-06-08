@@ -61,7 +61,6 @@ export interface SortableContainerProps {
   axis?: Axis
   dropAnimationDuration?: number
   dropAnimationEasing?: string
-  lockAxis?: Axis
   helperClass?: string
   helperStyle?: React.CSSProperties
   outOfTheWayAnimationDuration?: number
@@ -75,18 +74,16 @@ export interface SortableContainerProps {
   }
   pressDelay?: number
   pressThreshold?: number
-  distance?: number
+  moveDelay?: number
   shouldCancelStart?: (event: SortEvent | SortEventWithTag) => boolean
   updateBeforeSortStart?: SortStartHandler
-  onSortStart?: SortStartHandler
-  onSortMove?: SortMoveHandler
-  onSortEnd?: SortEndHandler
-  onSortOver?: SortOverHandler
-  useDragHandle?: boolean
-  useWindowAsScrollContainer?: boolean
+  onStart?: SortStartHandler
+  onMove?: SortMoveHandler
+  onEnd?: SortEndHandler
+  onOver?: SortOverHandler
+  withHandle?: boolean
   hideSortableGhost?: boolean
   lockToContainerEdges?: boolean
-  lockOffset?: Offset | [Offset, Offset]
   getContainer?: ContainerGetter
   getHelperDimensions?: (sort: SortStart) => Dimensions
   helperContainer?: HTMLElement | HelperContainerGetter

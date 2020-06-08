@@ -18,7 +18,7 @@ class App extends Component {
     ]
   }
 
-  onSortEnd = ({ oldIndex, newIndex, collection }) => {
+  onEnd = ({ oldIndex, newIndex, collection }) => {
     this.setState(({ collections }) => {
       const newCollections = [...collections]
 
@@ -32,7 +32,7 @@ class App extends Component {
     const { collections } = this.state
 
     return (
-      <SortableContainer onSortEnd={this.onSortEnd}>
+      <SortableContainer onEnd={this.onEnd}>
         {collections.map((items, index) => (
           <React.Fragment key={index}>
             <strong>LIST {index}</strong>

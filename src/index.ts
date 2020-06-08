@@ -1,7 +1,8 @@
-export { default as SortableContainer } from './SortableContainer'
-export { default as sortableContainer } from './SortableContainer'
-
-export { useElement } from './element'
-export { useHandle } from './handle'
+export { useSorter } from './sorter'
+export { useSortable } from './sortable'
+export { useHandle } from './use-handle'
 
 export { arrayMove } from './utils'
+
+export const SortableContainer = s => s
+export const sortableContainer = s => s

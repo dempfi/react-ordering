@@ -1,10 +1,10 @@
 import React from 'react'
-import { useElement } from '../../../../src'
+import { useSortable } from '../../../../src'
 
 import styles from './Item.scss'
 
 function Item({ children, ...rest }) {
-  const [ref] = useElement(rest)
+  const [ref] = useSortable(rest)
 
   return (
     <div className={styles.root} tabIndex={0} ref={ref}>

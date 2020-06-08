@@ -57,24 +57,24 @@ export default class InteractiveElements extends React.Component {
   render() {
     return (
       <SortableList
-        // The distance prop isn't strictly required for this example, but it is recommended
+        // The moveDelay prop isn't strictly required for this example, but it is recommended
         // to set it to a low value for sortable items with nested interactive elements
         // such as clickable labels for checkbox / radio inputs
-        distance={2}
+        moveDelay={2}
         items={this.state.items}
-        onSortEnd={this.onSortEnd}
+        onEnd={this.onEnd}
         helperClass={ItemStyles.dragging}
       />
     )
   }
 
-  onSortEnd = ({ oldIndex, newIndex }) => {
-    if (oldIndex === newIndex) {
+  onEnd = ({ from, to }) => {
+    if (from === to) {
       return
     }
 
     this.setState(({ items }) => ({
-      items: arrayMove(items, oldIndex, newIndex)
+      items: arrayMove(items, from, to)
     }))
   }
 }

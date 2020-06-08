@@ -1,9 +1,8 @@
 import React, { Component } from 'react'
-import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
 import { storiesOf } from '@storybook/react'
 import style from './Storybook.scss'
-import { SortableContainer, useHandle, useElement } from '../index'
+import { SortableContainer, useHandle, useSortable, useSorter } from '../index'
 import arrayMove from 'array-move'
 import VirtualList from 'react-tiny-virtual-list'
 import { FixedSizeList, VariableSizeList } from 'react-window'
@@ -50,7 +49,7 @@ const Item = ({
   isSorting,
   ...rest
 }) => {
-  const [ref, { isDragging }] = useElement(rest)
+  const [ref, { isDragging }] = useSortable(rest)
   const bodyTabIndex = tabbable && !shouldUseDragHandle ? 0 : -1
   const handleTabIndex = tabbable && shouldUseDragHandle ? 0 : -1
 
@@ -78,34 +77,42 @@ const Item = ({
   )
 }
 
-const SortableList = SortableContainer(
-  ({ className, items, disabledItems = [], itemClass, isSorting, shouldUseDragHandle, type }) => {
-    return (
-      <div className={className}>
-        {items.map(({ value, height }, index) => {
-          const disabled = disabledItems.includes(value)
+const SortableList = ({
+  className,
+  items,
+  disabledItems = [],
+  itemClass,
+  isSorting,
+  shouldUseDragHandle,
+  type,
+  ...rest
+}) => {
+  const ref = useSorter(rest)
+  return (
+    <div className={className} ref={ref}>
+      {items.map(({ value, height }, index) => {
+        const disabled = disabledItems.includes(value)
 
-          return (
-            <Item
-              tabbable
-              key={`item-${value}`}
-              disabled={disabled}
-              isDisabled={disabled}
-              className={itemClass}
-              index={index}
-              itemIndex={index}
-              value={value}
-              height={height}
-              shouldUseDragHandle={shouldUseDragHandle}
-              type={type}
-              isSorting={isSorting}
-            />
-          )
-        })}
-      </div>
-    )
-  }
-)
+        return (
+          <Item
+            tabbable
+            key={`item-${value}`}
+            disabled={disabled}
+            isDisabled={disabled}
+            className={itemClass}
+            index={index}
+            itemIndex={index}
+            value={value}
+            height={height}
+            shouldUseDragHandle={shouldUseDragHandle}
+            type={type}
+            isSorting={isSorting}
+          />
+        )
+      })}
+    </div>
+  )
+}
 
 class SortableListWithCustomContainer extends React.Component {
   state = {
@@ -129,7 +136,7 @@ class SortableListWithCustomContainer extends React.Component {
 
 const Category = props => {
   const tabIndex = props.tabbable ? 0 : -1
-  const [ref] = useElement(props)
+  const [ref] = useSortable(props)
 
   return (
     <div className={style.category} ref={ref}>
@@ -140,7 +147,7 @@ const Category = props => {
       <ListWrapper
         component={SortableList}
         className={style.categoryList}
-        items={getItems(3, 59)}
+        items={getItems(10, 59)}
         shouldUseDragHandle={true}
         helperClass={style.stylizedHelper}
       />
@@ -154,18 +161,18 @@ class ListWrapper extends Component {
     isSorting: false
   }
 
-  static propTypes = {
-    items: PropTypes.array,
-    className: PropTypes.string,
-    itemClass: PropTypes.string,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    onSortStart: PropTypes.func,
-    onSortEnd: PropTypes.func,
-    component: PropTypes.func,
-    shouldUseDragHandle: PropTypes.bool,
-    disabledItems: PropTypes.arrayOf(PropTypes.string)
-  }
+  // static propTypes = {
+  //   items: PropTypes.array,
+  //   className: PropTypes.string,
+  //   itemClass: PropTypes.string,
+  //   width: PropTypes.number,
+  //   height: PropTypes.number,
+  //   onStart: PropTypes.func,
+  //   onEnd: PropTypes.func,
+  //   component: PropTypes.func,
+  //   shouldUseDragHandle: PropTypes.bool,
+  //   disabledItems: PropTypes.arrayOf(PropTypes.string)
+  // }
 
   static defaultProps = {
     className: classNames(style.list, style.stylizedList),
@@ -174,31 +181,30 @@ class ListWrapper extends Component {
     height: 600
   }
 
-  onSortStart = (sortEvent, nativeEvent) => {
-    const { onSortStart } = this.props
+  onStart = sortEvent => {
+    const { onStart } = this.props
     this.setState({ isSorting: true })
 
     document.body.style.cursor = 'grabbing'
 
-    if (onSortStart) {
-      onSortStart(sortEvent, nativeEvent, this.refs.component)
+    if (onStart) {
+      onStart(sortEvent)
     }
   }
 
-  onSortEnd = (sortEvent, nativeEvent) => {
-    const { onSortEnd } = this.props
-    const { oldIndex, newIndex } = sortEvent
+  onEnd = ({ from, to }) => {
+    const { onEnd } = this.props
     const { items } = this.state
 
     this.setState({
-      items: arrayMove(items, oldIndex, newIndex),
+      items: arrayMove(items, from, to),
       isSorting: false
     })
 
     document.body.style.cursor = ''
 
-    if (onSortEnd) {
-      onSortEnd(sortEvent, nativeEvent, this.refs.component)
+    if (onEnd) {
+      onEnd(sortEvent)
     }
   }
 
@@ -208,10 +214,10 @@ class ListWrapper extends Component {
     const props = {
       isSorting,
       items,
-      onSortEnd: this.onSortEnd,
-      onSortStart: this.onSortStart,
-      ref: 'component',
-      useDragHandle: this.props.shouldUseDragHandle
+      onEnd: this.onEnd,
+      onStart: this.onStart,
+      // ref: 'component',
+      withHandle: this.props.shouldUseDragHandle
     }
 
     return <Component {...this.props} {...props} />
@@ -328,18 +334,18 @@ const SortableTable = SortableContainer(Table, { withRef: true })
 // const SortableRowRenderer = SortableElement(defaultTableRowRenderer)
 
 class TableWrapper extends Component {
-  static propTypes = {
-    items: PropTypes.array,
-    className: PropTypes.string,
-    helperClass: PropTypes.string,
-    itemClass: PropTypes.string,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    itemHeight: PropTypes.number,
-    onSortEnd: PropTypes.func
-  }
+  // static propTypes = {
+  //   items: PropTypes.array,
+  //   className: PropTypes.string,
+  //   helperClass: PropTypes.string,
+  //   itemClass: PropTypes.string,
+  //   width: PropTypes.number,
+  //   height: PropTypes.number,
+  //   itemHeight: PropTypes.number,
+  //   onEnd: PropTypes.func
+  // }
   render() {
-    const { className, height, helperClass, itemClass, itemHeight, items, onSortEnd, width } = this.props
+    const { className, height, helperClass, itemClass, itemHeight, items, onEnd, width } = this.props
 
     return (
       <SortableTable
@@ -348,7 +354,7 @@ class TableWrapper extends Component {
         headerHeight={itemHeight}
         height={height}
         helperClass={helperClass}
-        onSortEnd={onSortEnd}
+        onEnd={onEnd}
         rowClassName={itemClass}
         rowCount={items.length}
         rowGetter={({ index }) => items[index]}
@@ -462,24 +468,22 @@ storiesOf('General | Layout / Horizontal list', module).add('Basic setup', () =>
 
 storiesOf('General | Layout / Grid', module)
   .add('Basic setup', () => {
-    const transformOrigin = {
-      x: 0,
-      y: 0
-    }
-
     return (
       <div className={style.root}>
         <ListWrapper
+          style={{ backgroundColor: 'grey', margin: '20px', padding: '30px' }}
           component={SortableList}
           axis={'xy'}
           items={getItems(10, false)}
           helperClass={style.stylizedHelper}
+          // lockToContainerEdges
           className={classNames(style.list, style.stylizedList, style.grid)}
           itemClass={classNames(style.stylizedItem, style.gridItem)}
         />
       </div>
     )
   })
+  // FIXME BROKEN
   .add('Large first item', () => {
     return (
       <div className={style.root}>
@@ -490,7 +494,7 @@ storiesOf('General | Layout / Grid', module)
           helperClass={style.stylizedHelper}
           className={classNames(style.list, style.stylizedList, style.grid, style.gridVariableSized)}
           itemClass={classNames(style.stylizedItem, style.gridItem, style.gridItemVariableSized)}
-          onSortStart={({ node, helper }, event) => {
+          onStart={({ node, helper }, event) => {
             const nodeBoundingClientRect = node.getBoundingClientRect()
             const helperWrapperNode = helper.childNodes[0]
             const transformOrigin = {
@@ -500,7 +504,7 @@ storiesOf('General | Layout / Grid', module)
 
             helperWrapperNode.style.transformOrigin = `${transformOrigin.x}% ${transformOrigin.y}%`
           }}
-          onSortOver={({ nodes, newIndex, index, helper }) => {
+          onOver={({ nodes, newIndex, index, helper }) => {
             const finalNodes = arrayMove(nodes, index, newIndex)
             const oldNode = nodes[index].node
             const newNode = nodes[newIndex].node
@@ -518,7 +522,7 @@ storiesOf('General | Layout / Grid', module)
               wrapperNode.style.transformOrigin = newIndex > i ? '0 0' : '100% 0'
             })
           }}
-          onSortEnd={({ nodes }) => {
+          onEnd={({ nodes }) => {
             nodes.forEach(({ node }) => {
               const wrapperNode = node.querySelector(`.${style.wrapper}`)
 
@@ -561,7 +565,7 @@ storiesOf('General | Configuration / Options', module)
         <ListWrapper
           component={SortableList}
           items={getItems(50, 59)}
-          pressDelay={200}
+          pressDelay={{ time: 200 }}
           helperClass={style.stylizedHelper}
         />
       </div>
@@ -573,7 +577,7 @@ storiesOf('General | Configuration / Options', module)
         <ListWrapper
           component={SortableList}
           items={getItems(50, 50)}
-          distance={20}
+          moveDelay={20}
           helperClass={style.stylizedHelper}
         />
       </div>
@@ -583,11 +587,11 @@ storiesOf('General | Configuration / Options', module)
     return (
       <div className={style.root}>
         <ListWrapper
+          style={{ backgroundColor: 'grey', margin: '20px', padding: '30px' }}
           component={SortableList}
           items={getItems(50)}
           helperClass={style.stylizedHelper}
-          lockAxis={'y'}
-          lockOffset={['0%', '100%']}
+          lockToContainerEdges
         />
       </div>
     )
@@ -701,7 +705,8 @@ storiesOf('Advanced examples | Virtualization libraries / react-window', module)
           items={getItems(500, 59)}
           itemHeight={59}
           helperClass={style.stylizedHelper}
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          // FIXME seems broken
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Window that the order of the items has changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList
@@ -719,7 +724,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-window', module)
           component={SortableReactWindow(VariableSizeList)}
           items={getItems(500)}
           helperClass={style.stylizedHelper}
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Window that the item heights have changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList
@@ -752,7 +757,7 @@ storiesOf('Advanced examples | Virtualization libraries / react-virtualized', mo
           items={getItems(500)}
           itemHeight={89}
           helperClass={style.stylizedHelper}
-          onSortEnd={(_sortEvent, _nativeEvent, ref) => {
+          onEnd={(_sortEvent, _nativeEvent, ref) => {
             // We need to inform React Virtualized that the item heights have changed
             const instance = ref.getWrappedInstance()
             const list = instance.refs.VirtualList

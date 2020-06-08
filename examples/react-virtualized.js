@@ -55,7 +55,7 @@ class App extends Component {
     this.List = listInstance
   }
 
-  onSortEnd = ({ oldIndex, newIndex }) => {
+  onEnd = ({ oldIndex, newIndex }) => {
     if (oldIndex === newIndex) {
       return
     }
@@ -77,7 +77,7 @@ class App extends Component {
   render() {
     const { items } = this.state
 
-    return <SortableVirtualList getRef={this.registerListRef} items={items} onSortEnd={this.onSortEnd} />
+    return <SortableVirtualList getRef={this.registerListRef} items={items} onEnd={this.onEnd} />
   }
 }
 

@@ -11,7 +11,7 @@ const extensions = ['.js', '.jsx', '.ts', '.tsx']
 
 const umdConfig = ({ minify } = {}) => ({
   input: pkg.source,
-  external: ['react', 'react-dom', 'prop-types'],
+  external: ['react', 'react-dom'],
   output: {
     name: 'SortableHOC',
     file: minify ? pkg['umd:main'].replace('.js', '.min.js') : pkg['umd:main'],

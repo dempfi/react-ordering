@@ -20,11 +20,11 @@ class GroupedItems extends React.Component {
         sortingItemKey={sortingItemKey}
         selectedItems={selectedItems}
         onItemSelect={this.handleItemSelect}
-        shouldCancelStart={this.handleShouldCancelStart}
-        updateBeforeSortStart={this.handleUpdateBeforeSortStart}
-        onSortStart={this.handleSortStart}
-        onSortEnd={this.handleSortEnd}
-        distance={3}
+        canSort={this.handleCanSort}
+        updateBeforeSortStart={this.updateBeforeStart}
+        onStart={this.handleSortStart}
+        onEnd={this.handleSortEnd}
+        moveDelay={3}
       />
     )
   }
@@ -46,7 +46,7 @@ class GroupedItems extends React.Component {
     return true
   }
 
-  handleUpdateBeforeSortStart = ({ index }) => {
+  updateBeforeStart = ({ index }) => {
     return new Promise(resolve =>
       this.setState(
         ({ items }) => ({
@@ -98,18 +98,18 @@ class GroupedItems extends React.Component {
     })
   }
 
-  handleShouldCancelStart = event => {
+  handleCanSort = element => {
     const { items, selectedItems } = this.state
-    const item = items[event.target.sortableInfo.index]
+    const item = items[element.sortableInfo.index]
 
     // Never cancel start if there are no selected items
     if (!selectedItems.length) {
-      return false
+      return true
     }
 
     // If there are selected items, we want to cancel sorting
     // from starting when dragging elements that are not selected
-    return !selectedItems.includes(item)
+    return selectedItems.includes(item)
   }
 }
 

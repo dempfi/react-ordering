@@ -1,8 +1,6 @@
-/* global process */
-import invariant from 'invariant'
-import { SortTouchEvent } from './types'
+import { CSSProperties } from 'react'
 
-export function arrayMove(array, from, to) {
+export const arrayMove = <T>(array: T[], from: number, to: number): T[] => {
   // Will be deprecated soon. Consumers should install 'array-move' instead
   // https://www.npmjs.com/package/array-move
 
@@ -21,79 +19,43 @@ export function arrayMove(array, from, to) {
   return array
 }
 
-export function omit(obj, keysToOmit) {
-  return Object.keys(obj).reduce((acc, key) => {
-    if (keysToOmit.indexOf(key) === -1) {
-      acc[key] = obj[key]
-    }
-
-    return acc
-  }, {})
+export const omit = <T, K extends keyof T>(obj: T, keys: K | K[]): Omit<T, K> => {
+  const clone = { ...obj }
+  const keysToOmit = Array.isArray(keys) ? keys : [keys]
+  for (const key of keysToOmit) delete clone[key]
+  return clone
 }
 
-export const events = {
-  end: ['touchend', 'touchcancel', 'mouseup'] as ['touchend', 'touchcancel', 'mouseup'],
-  move: ['touchmove', 'mousemove'] as ['touchmove', 'mousemove'],
-  start: ['touchstart', 'mousedown'] as ['touchstart', 'mousedown']
+export const setInlineStyles = (node: HTMLElement, styles: CSSProperties) => {
+  const keys = Object.keys(styles) as any[]
+  for (const key of keys) node.style[key] = (styles as any)[key]
 }
 
-export const vendorPrefix = (function () {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    // Server environment
-    return ''
-  }
-
-  // fix for: https://bugzilla.mozilla.org/show_bug.cgi?id=548397
-  // window.getComputedStyle() returns null inside an iframe with display: none
-  // in this case return an array with a fake mozilla style in it.
-  const styles = window.getComputedStyle(document.documentElement, '') || ['-moz-hidden-iframe']
-  const pre = (Array.prototype.slice
-    .call(styles)
-    .join('')
-    .match(/-(moz|webkit|ms)-/) ||
-    (styles.OLink === '' && ['', 'o']))[1]
-
-  switch (pre) {
-    case 'ms':
-      return 'ms'
-    default:
-      return pre && pre.length ? pre[0].toUpperCase() + pre.substr(1) : ''
-  }
-})()
-
-export function setInlineStyles(node, styles) {
-  Object.keys(styles).forEach(key => {
-    node.style[key] = styles[key]
-  })
+export const setTranslate = (element: HTMLElement, translate?: { x: number; y: number }) => {
+  element.style.transform = translate ? `translate(${translate.x}px,${translate.y}px)` : ''
 }
 
-export function setTranslate3d(node, translate) {
-  node.style[`${vendorPrefix}Transform`] = translate == null ? '' : `translate3d(${translate.x}px,${translate.y}px,0)`
+export const getTranslate = (element: HTMLElement) => {
+  const style = window.getComputedStyle(element).getPropertyValue('transform')
+  if (style === 'none') return
+  const parsed = style
+    .split('(')[1]
+    .split(')')[0]
+    .split(',')
+  return { x: Number(parsed[4]), y: Number(parsed[5]) }
 }
 
-export function setTransitionDuration(node, duration) {
-  node.style[`${vendorPrefix}TransitionDuration`] = duration == null ? '' : `${duration}ms`
+export const setTransition = (element: HTMLElement, duration: number = 0, easing: string = '') => {
+  element.style.transition = `transform ${duration}ms ${easing}`
 }
 
-export function setTransition(node, transition) {
-  node.style[`${vendorPrefix}Transition`] = transition
+export const closest = <T>(el: HTMLElement, fn: (el: any) => el is T): T | undefined => {
+  if (!el) return
+  if (fn(el)) return el
+  return closest<T>(el.parentNode as HTMLElement, fn)
 }
 
-export function closest<T>(el: HTMLElement, fn: (el: any) => el is T) {
-  while (el) {
-    if (fn(el)) {
-      return el
-    }
-
-    el = el.parentNode
-  }
-
-  return null
-}
-
-export function limit(min: number, max: number, value: number) {
-  return Math.max(min, Math.min(value, max))
-}
+export const clamp = (min: number, max: number, value: number) => Math.max(min, Math.min(value, max))
 
 function getPixelValue(stringValue: string) {
   if (stringValue.substr(-2) === 'px') {
@@ -128,37 +90,13 @@ export function getScrollAdjustedBoundingClientRect(node: HTMLElement, scrollDel
   }
 }
 
-export function getPosition(event: SortTouchEvent | { pageX: number; pageY: number }) {
-  if (isTouchEvent(event)) {
-    if (event.touches && event.touches.length) {
-      return {
-        x: event.touches[0].pageX,
-        y: event.touches[0].pageY
-      }
-    } else {
-      return {
-        x: event.changedTouches[0].pageX,
-        y: event.changedTouches[0].pageY
-      }
-    }
-  } else {
-    return {
-      x: event.pageX,
-      y: event.pageY
-    }
-  }
-}
-
-export const isTouchEvent = (event: any): event is SortTouchEvent =>
-  (event.touches && event.touches.length) || (event.changedTouches && event.changedTouches.length)
-
-export function getEdgeOffset(
+export function offsetFromParent(
   node: HTMLElement,
   parent?: HTMLElement,
   offset = { left: 0, top: 0 }
 ): { left: number; top: number } {
   if (!node) {
-    return undefined
+    return undefined as any
   }
 
   // Get the actual offsetTop / offsetLeft value, no matter how deep the node is nested
@@ -171,84 +109,15 @@ export function getEdgeOffset(
     return nodeOffset
   }
 
-  return getEdgeOffset(node.parentNode as HTMLElement, parent, nodeOffset)
+  return offsetFromParent(node.parentNode as HTMLElement, parent, nodeOffset)
 }
 
-export function getTargetIndex(newIndex, prevIndex, oldIndex) {
-  if (newIndex < oldIndex && newIndex > prevIndex) {
-    return newIndex - 1
-  } else if (newIndex > oldIndex && newIndex < prevIndex) {
-    return newIndex + 1
-  } else {
-    return newIndex
-  }
-}
-
-export function getLockPixelOffset({ lockOffset, width, height }) {
-  let offsetX = lockOffset
-  let offsetY = lockOffset
-  let unit = 'px'
-
-  if (typeof lockOffset === 'string') {
-    const match = /^[+-]?\d*(?:\.\d*)?(px|%)$/.exec(lockOffset)
-
-    invariant(
-      match !== null,
-      'lockOffset value should be a number or a string of a ' + 'number followed by "px" or "%". Given %s',
-      lockOffset
-    )
-
-    offsetX = parseFloat(lockOffset)
-    offsetY = parseFloat(lockOffset)
-    unit = match[1]
-  }
-
-  invariant(isFinite(offsetX) && isFinite(offsetY), 'lockOffset value should be a finite. Given %s', lockOffset)
-
-  if (unit === '%') {
-    offsetX = (offsetX * width) / 100
-    offsetY = (offsetY * height) / 100
-  }
-
-  return {
-    x: offsetX,
-    y: offsetY
-  }
-}
-
-export function getLockPixelOffsets({ height, width, lockOffset }) {
-  const offsets = Array.isArray(lockOffset) ? lockOffset : [lockOffset, lockOffset]
-
-  invariant(
-    offsets.length === 2,
-    'lockOffset prop of SortableContainer should be a single ' + 'value or an array of exactly two values. Given %s',
-    lockOffset
-  )
-
-  const [minLockOffset, maxLockOffset] = offsets
-
-  return [
-    getLockPixelOffset({ height, lockOffset: minLockOffset, width }),
-    getLockPixelOffset({ height, lockOffset: maxLockOffset, width })
-  ]
-}
-
-function isScrollable(el) {
+export const isScrollableElement = (el: HTMLElement): el is HTMLElement => {
+  if ((el as any) === document) return false
   const computedStyle = window.getComputedStyle(el)
   const overflowRegex = /(auto|scroll)/
-  const properties = ['overflow', 'overflowX', 'overflowY']
-
-  return properties.find(property => overflowRegex.test(computedStyle[property]))
-}
-
-export function getScrollingParent(el) {
-  if (!(el instanceof HTMLElement)) {
-    return null
-  } else if (isScrollable(el)) {
-    return el
-  } else {
-    return getScrollingParent(el.parentNode)
-  }
+  const properties = ['overflow', 'overflowX', 'overflowY'] as ['overflow', 'overflowX', 'overflowY']
+  return !!properties.find(property => overflowRegex.test(computedStyle[property]))
 }
 
 export function getContainerGridGap(element: HTMLElement) {
@@ -284,28 +153,12 @@ export const NodeType = {
   Select: 'SELECT'
 }
 
-export function cloneNode(node: HTMLElement): HTMLElement {
-  const selector = 'input, textarea, select, canvas, [contenteditable]'
-  const fields = node.querySelectorAll<HTMLInputElement>(selector)
-  const clonedNode = node.cloneNode(true) as HTMLElement
-  const clonedFields = [...clonedNode.querySelectorAll<HTMLInputElement>(selector)]
-
-  clonedFields.forEach((field, i) => {
-    if (field.type !== 'file') {
-      field.value = fields[i].value
-    }
-
-    // Fixes an issue with original radio buttons losing their value once the
-    // clone is inserted in the DOM, as radio button `name` attributes must be unique
-    if (field.type === 'radio' && field.name) {
-      field.name = `__sortableClone__${field.name}`
-    }
-
-    if (field.tagName === NodeType.Canvas && fields[i].width > 0 && fields[i].height > 0) {
-      const destCtx = field.getContext('2d')
-      destCtx.drawImage(fields[i], 0, 0)
-    }
-  })
-
-  return clonedNode
+export const getTargetIndex = (newIndex: number, prevIndex: number, oldIndex: number) => {
+  if (newIndex < oldIndex && newIndex > prevIndex) {
+    return newIndex - 1
+  } else if (newIndex > oldIndex && newIndex < prevIndex) {
+    return newIndex + 1
+  } else {
+    return newIndex
+  }
 }
